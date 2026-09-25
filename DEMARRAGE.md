@@ -30,8 +30,17 @@ Onglet **Comptes**, colonne A, une adresse par ligne à partir de la ligne 2.
 |---|---|
 | Unité organisationnelle | Sur un grand domaine, accélère fortement le rapport. |
 | Jours d'historique | Fenêtre longue des cumuls (30 par défaut). |
+| Langue de l'interface | Menu et fenêtres en français ou en anglais, si la détection automatique se trompe. Rouvrez le classeur. |
 
-## 5. Lire la synthèse
+## 5. Programmer (facultatif)
+
+Menu **Programmer le rapport hebdomadaire** : le rapport se génère seul, au jour et à l'heure de l'onglet **Paramètres**.
+
+> ⚠️ Il tourne sous **votre** identité. Réservez la modification du classeur aux administrateurs : un éditeur pourrait modifier le script et agir avec vos droits.
+
+Après avoir changé le jour ou l'heure, choisissez de nouveau **Programmer**.
+
+## 6. Lire la synthèse
 
 | Où | Ce que ça dit |
 |---|---|

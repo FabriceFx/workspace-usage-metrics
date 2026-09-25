@@ -33,6 +33,10 @@ const texteVisible = (html) => String(html)
   .replace(/\s+/g, ' ')
   .trim();
 
+const JOURS_SEMAINE = Object.freeze(Object.fromEntries(
+  ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY']
+    .map((nom) => [nom, Object.freeze({ nom })])));
+
 const installerFauxGoogle = (sandbox, DateContexte, options = {}) => {
   const horloge = { decalage: 0 };
   const compteurs = { usage: 0, activites: 0, usageParJour: {} };
@@ -45,10 +49,24 @@ const installerFauxGoogle = (sandbox, DateContexte, options = {}) => {
 
   const alertes = [];
   const modales = [];
+  const menus = [];
   const ui = {
+    createMenu: (titre) => {
+      if (typeof titre !== 'string' || titre === '') throw new Error('Invalid argument: caption');
+      const menu = { titre, entrees: [] };
+      const constructeur = {
+        addItem: (libelle, fonction) => { menu.entrees.push({ libelle, fonction }); return constructeur; },
+        addSeparator: () => constructeur,
+        addToUi: () => { menus.push(menu); },
+      };
+      return constructeur;
+    },
     ButtonSet: { OK: 'OK', OK_CANCEL: 'OK_CANCEL' },
     Button: { OK: 'OK', CANCEL: 'CANCEL' },
-    alert: (titre, message) => { alertes.push({ titre, message }); return 'OK'; },
+    alert: (titre, message) => {
+      alertes.push({ titre, message });
+      return options.reponseAlerte || 'OK';
+    },
     showModalDialog: (output, titre) => {
       if (!output || typeof output.getContent !== 'function') {
         throw new Error('Exception: Invalid argument: userInterface');
@@ -177,6 +195,11 @@ const installerFauxGoogle = (sandbox, DateContexte, options = {}) => {
 
     getName() { return this.nom; }
 
+    getLastColumn() {
+      return this.cellules.reduce((max, ligne) => Math.max(max, ...(ligne || [])
+        .map((v, i) => (v !== undefined && v !== '' ? i + 1 : 0)), 0), 0);
+    }
+
     getLastRow() {
       for (let l = this.cellules.length - 1; l >= 0; l -= 1) {
         if ((this.cellules[l] || []).some((v) => v !== undefined && v !== '')) return l + 1;
@@ -218,6 +241,14 @@ const installerFauxGoogle = (sandbox, DateContexte, options = {}) => {
       return feuille;
     },
     getSheets: () => feuilles.slice(),
+    deleteSheet: (feuille) => {
+      const i = feuilles.indexOf(feuille);
+      if (i === -1) throw new Error('Sheet not found');
+      if (feuilles.length === 1) {
+        throw new Error('You can\'t remove all the sheets in a document.');
+      }
+      feuilles.splice(i, 1);
+    },
     toast: (message) => { toasts.push(message); },
   };
 
@@ -358,6 +389,7 @@ const installerFauxGoogle = (sandbox, DateContexte, options = {}) => {
     Session: {
       getScriptTimeZone: () => 'Europe/Paris',
       getActiveUserLocale: () => options.locale || 'fr',
+      getActiveUser: () => ({ getEmail: () => options.utilisateur ?? 'admin@exemple.fr' }),
     },
 
     Utilities: {
@@ -425,8 +457,32 @@ const installerFauxGoogle = (sandbox, DateContexte, options = {}) => {
         if (i === -1) throw new Error('Trigger not found');
         declencheurs.splice(i, 1);
       },
+      // Des objets, comme les énumérations de Google : une chaîne « MONDAY »
+      // ou un `undefined` passés à onWeekDay sont refusés.
+      WeekDay: JOURS_SEMAINE,
       newTrigger: (nom) => ({
         timeBased: () => ({
+          onWeekDay: (jour) => {
+            if (!Object.values(JOURS_SEMAINE).includes(jour)) {
+              throw new Error('Exception: Invalid argument: day');
+            }
+            const hebdo = { jour: jour.nom, heure: null };
+            const constructeur = {
+              atHour: (heure) => {
+                if (!Number.isInteger(heure) || heure < 0 || heure > 23) {
+                  throw new Error('Exception: Invalid argument: hour');
+                }
+                hebdo.heure = heure;
+                return constructeur;
+              },
+              create: () => {
+                const d = { getHandlerFunction: () => nom, ...hebdo };
+                declencheurs.push(d);
+                return d;
+              },
+            };
+            return constructeur;
+          },
           after: (ms) => ({
             create: () => {
               if (typeof ms !== 'number') throw new Error('Invalid argument: after');
@@ -440,8 +496,11 @@ const installerFauxGoogle = (sandbox, DateContexte, options = {}) => {
     },
   });
 
+  // Un classeur neuf n'est jamais vide : Google y pose une première feuille.
+  if (options.premiereFeuille !== null) classeur.insertSheet(options.premiereFeuille || 'Feuille 1');
+
   sandbox.__horloge = horloge;
-  return { alertes, modales, reports, horloge, compteurs, declencheurs, proprietes, feuilles, classeur, toasts, verrou, pannes, FausseFeuille };
+  return { menus, alertes, modales, reports, horloge, compteurs, declencheurs, proprietes, feuilles, classeur, toasts, verrou, pannes, FausseFeuille };
 };
 
 module.exports = { installerFauxGoogle };

@@ -21,7 +21,7 @@
  */
 
 /** Le seul numéro de version courant du projet. Le banc vérifie qu'il vaut `VERSION`. */
-const METRIQUE_VERSION = '0.3.2';
+const METRIQUE_VERSION = '0.4.2';
 
 /**
  * Constantes techniques. Rien ici ne relève du jugement : les fenêtres, seuils
@@ -96,16 +96,41 @@ const PARAMETRES_DEFAUT = Object.freeze([
       + 'les accélère d\'autant ; un compte hors de l\'UO apparaîtra alors « absent ». '
       + 'Vide = tout le domaine.',
   },
+  {
+    nom: 'langueInterface', cle: 'Langue de l\'interface', valeur: 'automatique', texte: true,
+    choix: ['automatique', 'français', 'anglais'],
+    explication: 'Langue du menu et des boîtes de dialogue. « automatique » suit la langue du '
+      + 'compte Google telle qu\'Apps Script la rapporte (voir « À propos ») ; choisissez '
+      + '« français » ou « anglais » si elle est mal détectée. Rouvrez le classeur pour le menu.',
+  },
+  {
+    nom: 'jourProgramme', cle: 'Jour du rapport programmé', valeur: 'lundi', texte: true,
+    choix: ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'],
+    explication: 'Jour du rapport automatique (menu « Programmer le rapport hebdomadaire »). '
+      + 'Un changement ne s\'applique qu\'après avoir choisi à nouveau « Programmer ».',
+  },
+  {
+    nom: 'heureProgramme', cle: 'Heure du rapport programmé', valeur: 7, min: 0, max: 23,
+    explication: 'Heure de départ, de 0 à 23, dans le fuseau du script. Google lance le '
+      + 'rapport à un moment quelconque de cette heure-là.',
+  },
 ]);
 
 /* ============================ POINTS D'ENTRÉE ============================ */
 
 function onOpen() {
+  // Trace dans Extensions > Apps Script > Exécutions : c'est dans ce contexte
+  // restreint (déclencheur simple) que la langue du compte peut être mal rendue.
+  const { code, locale, source } = detectionLangue_();
+  console.log(`Menu en « ${code} » — langue du compte selon Google : « ${locale} », source : ${source}.`);
   SpreadsheetApp.getUi()
     .createMenu(t_('menuTitre'))
     .addItem(t_('menuGenerer'), 'genererRapport')
     .addItem(t_('menuDiagnostiquer'), 'diagnostiquer')
     .addItem(t_('menuAbandonner'), 'abandonnerRapport')
+    .addSeparator()
+    .addItem(t_('menuProgrammer'), 'programmerRapport')
+    .addItem(t_('menuArreterProgramme'), 'arreterRapportProgramme')
     .addSeparator()
     .addItem(t_('menuAPropos'), 'aPropos')
     .addToUi();
@@ -147,6 +172,35 @@ function reprendreRapport() {
     }
   });
   if (!resultat.pris) SocleExecution.programmerReprise('reprendreRapport', CONFIG.DELAI_REPRISE_MS);
+}
+
+/**
+ * Cible du déclencheur hebdomadaire. Doit rester une `function` déclarée.
+ *
+ * Un rapport déjà en cours n'est pas relancé (`demarrerRapport_` le dit et
+ * s'arrête), un rapport orphelin est repris. Un échec s'écrit en tête de la
+ * synthèse, puis est relevé pour que Google notifie l'administrateur.
+ */
+function rapportProgramme() {
+  const resultat = SocleExecution.sousVerrou(() => {
+    try {
+      demarrerRapport_();
+    } catch (erreur) {
+      echouerRapport_(erreur);
+      throw erreur;
+    }
+  });
+  // Verrou pris par une génération manuelle : elle produit déjà un rapport.
+  // Pas de nouvel essai — reprogrammer par nom retirerait le déclencheur hebdomadaire.
+  if (!resultat.pris) console.log('Rapport programmé sauté : une génération est déjà en cours.');
+}
+
+function programmerRapport() {
+  depuisLeMenu_(t_('menuProgrammer'), () => programmerRapport_());
+}
+
+function arreterRapportProgramme() {
+  depuisLeMenu_(t_('menuArreterProgramme'), () => arreterRapportProgramme_());
 }
 
 /** Oublie un rapport en cours. Le cache des jours déjà chargés est conservé. */
@@ -233,7 +287,14 @@ const lireParametres_ = (classeur) => {
   PARAMETRES_DEFAUT.forEach((p) => {
     const brute = presents.has(p.cle) ? presents.get(p.cle) : p.valeur;
     if (p.texte) {
-      parametres[p.nom] = String(brute ?? '').trim();
+      const texte = String(brute ?? '').trim();
+      const choix = p.choix && texte.toLowerCase();
+      if (p.choix && !p.choix.includes(choix)) {
+        throw erreurUtilisateur_('erreurReglageChoix', {
+          cle: p.cle, valeur: texte, onglet: CONFIG.ONGLET_PARAMETRES, choix: p.choix.join(', '),
+        });
+      }
+      parametres[p.nom] = p.choix ? choix : texte;
       return;
     }
     const nombre = Number(brute);

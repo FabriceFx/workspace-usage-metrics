@@ -3,6 +3,38 @@
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 Ce projet suit le [Semantic Versioning](https://semver.org/lang/fr/).
 
+## [0.4.2] - 2026-09-25
+
+### Ajouté
+
+- À l'installation, la première feuille vide de Google (« Feuille 1 », « Sheet1 », ou « Feuil1 » d'un .xlsx importé) est retirée.
+
+### Modifié
+
+- Modules du socle en 0.12.2 ; `SocleFeuilles` ajouté.
+
+## [0.4.1] - 2026-09-25
+
+### Corrigé
+
+- Menu en anglais sur un compte en français : réglage « Langue de l'interface » (automatique, français, anglais) pour trancher.
+
+### Ajouté
+
+- « À propos » et le journal d'exécution indiquent la langue que Google rapporte, et celle retenue.
+
+## [0.4.0] - 2026-09-25
+
+### Ajouté
+
+- Rapport programmé chaque semaine (menu « Programmer le rapport hebdomadaire »), jour et heure dans « Paramètres ».
+- Confirmation avant de programmer, qui rappelle que le rapport tourne sous l'identité de l'administrateur.
+- README : comparaison avec la console d'administration.
+
+### Modifié
+
+- Nouvelle portée `userinfo.email`, pour savoir qui a programmé le rapport.
+
 ## [0.3.2] - 2026-09-25
 
 ### Corrigé

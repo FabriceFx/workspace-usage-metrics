@@ -26,6 +26,30 @@ const METRIQUE_CHAINES = Object.freeze({
     menuDiagnostiquer: 'Diagnostiquer les comptes',
     menuAbandonner: 'Abandonner le rapport en cours',
     menuAPropos: 'À propos',
+    menuProgrammer: 'Programmer le rapport hebdomadaire',
+    menuArreterProgramme: 'Arrêter le rapport programmé',
+
+    progConfirmTitre: 'Programmer le rapport ?',
+    progConfirmMessage: 'Le rapport sera généré chaque {jour} entre {heure} h et {heure} h 59, '
+      + 'sous votre identité ({par}) et avec vos droits de lecture sur les rapports Google, même '
+      + 'quand personne n\'ouvre ce classeur.\n\nToute personne qui peut modifier ce classeur '
+      + 'peut aussi modifier son script, et ce code s\'exécuterait alors avec ces droits. '
+      + 'Réservez la modification du classeur aux administrateurs.\n\nProgrammer ?',
+    progAdresseInconnue: 'adresse non communiquée par Google',
+    progFait: 'Rapport programmé chaque {jour} vers {heure} h.',
+    progDejaAutre: 'Le rapport est déjà programmé par {par} depuis le {le}. Un déclencheur '
+      + 'appartient à qui l\'a posé : demandez-lui de l\'arrêter avant d\'en programmer un autre.',
+    progArrete: 'Rapport programmé arrêté.',
+    progAucun: 'Aucun rapport n\'est programmé.',
+    progAutreArret: 'Le rapport est programmé par {par} : seul ce compte peut l\'arrêter, depuis '
+      + 'ce menu ou dans Apps Script > Déclencheurs.',
+    jourLundi: 'lundi',
+    jourMardi: 'mardi',
+    jourMercredi: 'mercredi',
+    jourJeudi: 'jeudi',
+    jourVendredi: 'vendredi',
+    jourSamedi: 'samedi',
+    jourDimanche: 'dimanche',
 
     btnFermer: 'Fermer',
     btnCompris: 'Compris',
@@ -66,8 +90,17 @@ const METRIQUE_CHAINES = Object.freeze({
     aProposNotesDesc: 'Chaque en-tête de la synthèse porte une note qui dit d\'où vient le chiffre. '
       + 'Une cellule vide veut dire « non mesuré », jamais zéro.',
     aProposLangueTitre: 'Langue',
-    aProposLangueDesc: 'L\'interface suit la langue de votre compte Google. Le contenu du classeur '
-      + 'reste en français, pour que tous ses lecteurs voient le même document.',
+    aProposLangueDesc: 'L\'interface suit la langue de votre compte Google, sauf si le réglage '
+      + '« Langue de l\'interface » en impose une. Le contenu du classeur reste en français, pour '
+      + 'que tous ses lecteurs voient le même document.',
+    aProposLangueConstatTitre: 'Langue détectée',
+    aProposLangueConstat: 'Google rapporte la langue du compte comme « {locale} ». Langue '
+      + 'retenue : {langue}, d\'après {source}.',
+    langueSourceReglage: 'le réglage « Langue de l\'interface »',
+    langueSourceCompte: 'la langue du compte',
+    langueNomFr: 'français',
+    langueNomEn: 'anglais',
+    localeVide: '(vide)',
 
     abandonTitre: 'Abandonner le rapport en cours ?',
     abandonMessage: 'Le rapport lancé le {debut} en est à l\'étape « {etape} ». Il ne se '
@@ -85,6 +118,8 @@ const METRIQUE_CHAINES = Object.freeze({
     erreurSeuils: 'Les seuils de l\'onglet « {onglet} » doivent être croissants (actif < actif '
       + 'récemment < inactif) ; ils valent {actif}, {recent} et {inactif}. Corrigez-les, puis '
       + 'relancez.',
+    erreurReglageChoix: 'Le réglage « {cle} » vaut « {valeur} » dans l\'onglet « {onglet} ». '
+      + 'Choisissez parmi : {choix} ; puis relancez.',
     erreurAucunCompte: 'Aucune adresse valide dans l\'onglet « {onglet} ». Saisissez une adresse '
       + 'par ligne en colonne A, à partir de la ligne 2, puis relancez.',
     erreurServiceRefuse: 'Le service de rapports Google refuse la requête ({detail}). Vérifiez que '
@@ -129,6 +164,30 @@ const METRIQUE_CHAINES = Object.freeze({
     menuDiagnostiquer: 'Diagnose accounts',
     menuAbandonner: 'Abort current report',
     menuAPropos: 'About',
+    menuProgrammer: 'Schedule weekly report',
+    menuArreterProgramme: 'Stop scheduled report',
+
+    progConfirmTitre: 'Schedule the report?',
+    progConfirmMessage: 'The report will run every {jour} between {heure}:00 and {heure}:59, '
+      + 'as you ({par}) and with your read access to Google reports, even when nobody opens '
+      + 'this spreadsheet.\n\nAnyone who can edit this spreadsheet can also edit its script, and '
+      + 'that code would then run with this access. Keep edit rights on the spreadsheet for '
+      + 'administrators only.\n\nSchedule?',
+    progAdresseInconnue: 'address not provided by Google',
+    progFait: 'Report scheduled every {jour} around {heure}:00.',
+    progDejaAutre: 'The report is already scheduled by {par} since {le}. A trigger belongs to '
+      + 'whoever created it: ask them to stop it before scheduling another one.',
+    progArrete: 'Scheduled report stopped.',
+    progAucun: 'No report is scheduled.',
+    progAutreArret: 'The report is scheduled by {par}: only that account can stop it, from this '
+      + 'menu or in Apps Script > Triggers.',
+    jourLundi: 'Monday',
+    jourMardi: 'Tuesday',
+    jourMercredi: 'Wednesday',
+    jourJeudi: 'Thursday',
+    jourVendredi: 'Friday',
+    jourSamedi: 'Saturday',
+    jourDimanche: 'Sunday',
 
     btnFermer: 'Close',
     btnCompris: 'Got it',
@@ -169,8 +228,17 @@ const METRIQUE_CHAINES = Object.freeze({
     aProposNotesDesc: 'Each summary header carries a note saying where the figure comes from. '
       + 'A blank cell means « not measured », never zero.',
     aProposLangueTitre: 'Language',
-    aProposLangueDesc: 'The interface follows your Google account language. The spreadsheet '
-      + 'content stays in French, so that every reader sees the same document.',
+    aProposLangueDesc: 'The interface follows your Google account language, unless the « Langue '
+      + 'de l\'interface » setting forces one. The spreadsheet content stays in French, so that '
+      + 'every reader sees the same document.',
+    aProposLangueConstatTitre: 'Detected language',
+    aProposLangueConstat: 'Google reports the account language as « {locale} ». Language used: '
+      + '{langue}, based on {source}.',
+    langueSourceReglage: 'the « Langue de l\'interface » setting',
+    langueSourceCompte: 'the account language',
+    langueNomFr: 'French',
+    langueNomEn: 'English',
+    localeVide: '(empty)',
 
     abandonTitre: 'Abort the current report?',
     abandonMessage: 'The report started on {debut} is at step « {etape} ». It will not '
@@ -186,6 +254,8 @@ const METRIQUE_CHAINES = Object.freeze({
       + 'whole number between {min} and {max}, then run again.',
     erreurSeuils: 'The thresholds in the « {onglet} » sheet must increase (active < recently '
       + 'active < inactive); they are {actif}, {recent} and {inactif}. Fix them, then run again.',
+    erreurReglageChoix: 'The setting « {cle} » is « {valeur} » in the « {onglet} » sheet. '
+      + 'Choose one of: {choix}; then run again.',
     erreurAucunCompte: 'No valid address in the « {onglet} » sheet. Enter one address per row '
       + 'in column A, from row 2, then run again.',
     erreurServiceRefuse: 'The Google reports service rejects the request ({detail}). Check that '
@@ -231,21 +301,56 @@ const METRIQUE_CHAINES = Object.freeze({
  * dans l'ordre du projet, et un appel à `SocleLangues` avant que son fichier
  * soit chargé ferait échouer le chargement du projet entier.
  */
-const METRIQUE_LANGUE_ = { code: '', declaree: false };
+const METRIQUE_LANGUE_ = { code: '', locale: '', source: '', declaree: false };
 
-/** 'fr' ou 'en', d'après la langue du compte Google ; 'fr' à défaut. */
-const langue_ = () => {
+/** Valeurs acceptées pour le réglage « Langue de l'interface ». */
+const LANGUES_REGLEES = Object.freeze({ français: 'fr', francais: 'fr', anglais: 'en' });
+
+/**
+ * Le réglage « Langue de l'interface », lu **sans rien écrire ni lever** :
+ * `onOpen` s'en sert, et un menu qui ne s'affiche pas parce qu'un réglage est
+ * mal saisi est pire qu'un menu dans la mauvaise langue. Absent, illisible ou
+ * « automatique » : `''`.
+ */
+const langueReglee_ = () => {
+  try {
+    const feuille = SpreadsheetApp.getActive().getSheetByName(CONFIG.ONGLET_PARAMETRES);
+    if (!feuille || feuille.getLastRow() < 2) return '';
+    const ligne = feuille.getRange(2, 1, feuille.getLastRow() - 1, 2).getValues()
+      .find(([cle]) => String(cle).trim() === 'Langue de l\'interface');
+    return ligne ? LANGUES_REGLEES[String(ligne[1]).trim().toLowerCase()] || '' : '';
+  } catch (erreur) {
+    console.log(`Réglage de langue illisible (${erreur.message}) : détection automatique.`);
+    return '';
+  }
+};
+
+/**
+ * La langue retenue, et d'où elle vient : `{ code, locale, source }`.
+ *
+ * Le réglage l'emporte sur la détection. `getActiveUserLocale` a été vu rendre
+ * l'anglais dans `onOpen` pour un compte en français : on ne sait pas encore
+ * si c'est le contexte restreint du déclencheur simple ou le compte. D'où le
+ * réglage pour trancher, et la valeur brute gardée pour « À propos ».
+ */
+const detectionLangue_ = () => {
   if (!METRIQUE_LANGUE_.code) {
     let locale = '';
     try {
       locale = String(Session.getActiveUserLocale() || '');
     } catch (erreur) {
-      console.log(`Langue de l'utilisateur illisible (${erreur.message}) : français.`);
+      console.log(`Langue de l'utilisateur illisible (${erreur.message}).`);
     }
-    METRIQUE_LANGUE_.code = locale.toLowerCase().startsWith('en') ? 'en' : 'fr';
+    const reglee = langueReglee_();
+    METRIQUE_LANGUE_.locale = locale;
+    METRIQUE_LANGUE_.source = reglee ? 'reglage' : 'compte';
+    METRIQUE_LANGUE_.code = reglee || (locale.toLowerCase().startsWith('en') ? 'en' : 'fr');
   }
-  return METRIQUE_LANGUE_.code;
+  return { code: METRIQUE_LANGUE_.code, locale: METRIQUE_LANGUE_.locale, source: METRIQUE_LANGUE_.source };
 };
+
+/** 'fr' ou 'en'. */
+const langue_ = () => detectionLangue_().code;
 
 const declarerChaines_ = () => {
   if (METRIQUE_LANGUE_.declaree) return;
@@ -585,6 +690,16 @@ const paragrapheCarte_ = (cleTitre, cleDescription) => {
   return `<p style="margin-bottom: 6px;"><strong>${e(t_(cleTitre))}</strong> : ${e(t_(cleDescription))}</p>`;
 };
 
+/** Ce que Google a répondu sur la langue, et ce qu'on en a retenu. */
+const constatLangue_ = () => {
+  const { code, locale, source } = detectionLangue_();
+  return t_('aProposLangueConstat', {
+    locale: locale || t_('localeVide'),
+    langue: t_(code === 'en' ? 'langueNomEn' : 'langueNomFr'),
+    source: t_(source === 'reglage' ? 'langueSourceReglage' : 'langueSourceCompte'),
+  });
+};
+
 const afficherAProposMd3_ = () => {
   const e = SocleTexte.echapperHtml;
   const corps = `
@@ -607,6 +722,7 @@ const afficherAProposMd3_ = () => {
         ${paragrapheCarte_('aProposSourcesTitre', 'aProposSourcesDesc')}
         ${paragrapheCarte_('aProposNotesTitre', 'aProposNotesDesc')}
         ${paragrapheCarte_('aProposLangueTitre', 'aProposLangueDesc')}
+        <p><strong>${e(t_('aProposLangueConstatTitre'))}</strong> : ${e(constatLangue_())}</p>
       </div>
     </div>
 

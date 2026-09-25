@@ -59,12 +59,21 @@ const entetesSynthese_ = (joursHistorique) => {
   return { entetes: colonnes.map(([e]) => e), notes: colonnes.map(([, note]) => note) };
 };
 
-/** Lit les adresses en colonne A (ligne 1 = en-tête). Crée l'onglet s'il n'existe pas. */
+/**
+ * Lit les adresses en colonne A (ligne 1 = en-tête).
+ *
+ * L'onglet absent, c'est l'installation : on le crée, et l'on retire la
+ * première feuille que Google pose dans un classeur neuf (« Feuille 1 » en
+ * français, « Sheet1 » en anglais, « Feuil1 » pour un .xlsx importé) — seulement si elle est vide. Hors
+ * installation on n'y touche pas : une feuille vide peut être voulue.
+ */
 const lireComptes_ = (classeur) => {
   const feuille = classeur.getSheetByName(CONFIG.ONGLET_COMPTES);
   if (!feuille) {
     classeur.insertSheet(CONFIG.ONGLET_COMPTES, 0)
       .getRange(1, 1).setValue('Adresse du compte').setFontWeight('bold');
+    const { retirees } = SocleFeuilles.retirerFeuilleParDefaut();
+    if (retirees.length) console.log(`Installation : onglet(s) retiré(s) : ${retirees.join(', ')}.`);
     return [];
   }
   const derniere = feuille.getLastRow();

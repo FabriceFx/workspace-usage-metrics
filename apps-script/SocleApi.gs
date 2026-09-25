@@ -11,7 +11,7 @@
  * SocleExecution.
  */
 
-const SOCLE_API_VERSION_ = '0.12.1';
+const SOCLE_API_VERSION_ = '0.12.2';
 
 /**
  * Pages au plus, si l'appelant n'en dit rien.

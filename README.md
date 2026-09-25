@@ -11,9 +11,19 @@ s'ils servent encore. Le résultat est un onglet de synthèse : un statut par
 compte, les dates de dernière activité, des cumuls sur 7 jours et sur une
 fenêtre réglable, et le journal Drive détaillé des derniers jours.
 
-Pour l'installer et s'en servir, voir **[DEMARRAGE.md](DEMARRAGE.md)**. Ce
-fichier-ci explique les choix de conception, et surtout **pourquoi** ils sont
-ce qu'ils sont.
+Pour l'installer et s'en servir, voir **[DEMARRAGE.md](DEMARRAGE.md)**.
+
+### Pourquoi pas la console d'administration ?
+
+Ce que la console demande en une heure de filtres, l'outil le fait en un clic.
+
+| Dans la console | Avec l'outil |
+|---|---|
+| Filtrer les comptes un par un, dans le rapport d'usage | une liste choisie, une fois pour toutes |
+| Gmail et Drive dans deux vues séparées | réunis sur une ligne par compte |
+| Journal Drive consulté à part, utilisateur par utilisateur | détail Drive dans un onglet |
+| Décider soi-même si un compte est actif | statut calculé selon des seuils réglables |
+| Tout refaire le mois suivant | même rapport à chaque fois, ou chaque semaine sans cliquer |
 
 ### D'où viennent les chiffres
 
@@ -37,16 +47,33 @@ récente des deux sources : c'est la seule colonne qui peut dépasser cette date
 | On interroge **tout le domaine** (`all`), pas chaque compte. | 30 jours = 30 appels par tranche de 1 000 utilisateurs, quel que soit le nombre de comptes suivis. |
 | Les jours publiés sont **gardés en cache** (onglet masqué). | Ils ne changent plus : le rapport quotidien ne demande que le jour nouveau. |
 | Le rapport **s'interrompt et reprend** seul. | Un grand domaine dépasse les 6 minutes d'une exécution. |
-| Le projet est **lié au classeur**. | Chaque action s'exécute sous l'identité de qui clique, sans prêter ses droits. |
+| Le projet est **lié au classeur**. | Chaque action manuelle s'exécute sous l'identité de qui clique. |
 | Les réglages sont dans l'onglet **« Paramètres »**. | Les changer ne demande aucun déploiement. |
 | Les dates affichent **le jour**, pas l'heure. | Certaines ne sont connues qu'au jour ; une heure serait inventée. |
 | Les titres de fichiers Drive sont **forcés en texte**. | Un titre `=IMAGE(…)` deviendrait sinon une formule active. |
+
+### Rapport programmé
+
+Menu **Programmer le rapport hebdomadaire** : le rapport se génère seul, au jour
+et à l'heure réglés dans l'onglet « Paramètres » (lundi, 7 h par défaut).
+
+> ⚠️ **Le rapport programmé s'exécute sous l'identité de l'administrateur qui
+> l'a posé, avec ses droits de lecture sur les rapports Google.** Toute
+> personne qui peut modifier le classeur peut aussi modifier son script, et ce
+> code s'exécuterait alors avec ces droits. **Réservez la modification du
+> classeur aux administrateurs.** La confirmation le rappelle avant de
+> programmer.
+
+Un seul rapport programmé par classeur : il appartient à qui l'a posé, et seul
+ce compte peut l'arrêter.
 
 ### Deux langues : ce qui est traduit, et ce qui ne l'est pas
 
 Ce que l'outil **dit** à la personne suit la langue de son compte Google
 (français, ou anglais pour toute langue en `en`) : menu, boîtes de dialogue,
-messages d'erreur, notifications, diagnostic.
+messages d'erreur, notifications, diagnostic. Si la détection se trompe, le
+réglage « Langue de l'interface » l'impose ; « À propos » montre ce que Google a
+rapporté.
 
 Le **contenu du classeur** reste en français : noms d'onglets, en-têtes,
 statuts, bandeau, notes d'en-tête, explications de l'onglet « Paramètres ».
@@ -65,7 +92,8 @@ tables ont les mêmes clés.
 | `admin.reports.audit.readonly` | journal Drive |
 | `spreadsheets.currentonly` | ce classeur-ci, et aucun autre |
 | `script.container.ui` | menu et boîtes de dialogue |
-| `script.scriptapp` | déclencheur de reprise |
+| `script.scriptapp` | déclencheurs de reprise et rapport programmé |
+| `userinfo.email` | savoir qui a programmé le rapport, pour le dire aux autres administrateurs |
 
 Rien d'autre : aucun accès aux boîtes aux lettres ni au contenu des fichiers
 Drive. Le banc le vérifie (`GmailApp`, `DriveApp`, `openById`, `UrlFetchApp`
@@ -82,6 +110,7 @@ apps-script/
   MetriqueCache.gs       cache des jours publiés
   MetriqueAnalyse.gs     calcul d'une ligne de synthèse
   MetriqueClasseur.gs    lecture des comptes, écriture des onglets
+  MetriqueProgrammation.gs  rapport hebdomadaire
   Socle*.gs              recopiés tels quels de socle-apps-script
   appsscript.json
 banc/
@@ -128,6 +157,10 @@ log of the last few days.
 
 Setup instructions are in **[DEMARRAGE.md](DEMARRAGE.md)** (French).
 
+What the admin console takes an hour of filtering to show — accounts one by
+one, Gmail and Drive in separate views, the Drive log per user, then deciding
+by hand — the tool does in one click, and can repeat every week on its own.
+
 ### Where the figures come from
 
 | Source | What it gives | Freshness |
@@ -153,7 +186,17 @@ banner. « Dernière activité Drive » takes the more recent of both sources.
   four-minute budget; its state stays under the 9 KB property limit, and a
   one-off trigger resumes it a minute later. Diagnostics follow the same rule.
 - **Bound to the spreadsheet.** The menu comes from the simple `onOpen`
-  trigger, so each action runs as whoever clicks it.
+  trigger, so each manual action runs as whoever clicks it.
+
+### Scheduled report
+
+**Schedule weekly report** runs the report on its own, on the day and hour set
+in the « Paramètres » sheet (Monday, 7 am by default).
+
+> ⚠️ The scheduled report runs as the administrator who set it up, with their
+> read access to Google reports. Anyone who can edit the spreadsheet can also
+> edit its script, and that code would then run with this access. **Keep edit
+> rights on the spreadsheet for administrators only.**
 - **Dates are days.** Some last-activity values are only known to the day;
   showing a time would present a guess as a fact.
 - **File titles are hostile data.** A shared file named `=IMAGE("https://…")`
@@ -163,7 +206,7 @@ banner. « Dernière activité Drive » takes the more recent of both sources.
 
 What the tool **says** — menu, dialogs, errors, notifications, diagnostics —
 follows the language of your Google account (English for any `en` locale,
-French otherwise). The **spreadsheet content** — sheet names, headers,
+French otherwise), unless the « Langue de l'interface » setting forces one. The **spreadsheet content** — sheet names, headers,
 statuses, banner, header notes — stays in French: it is a shared document, and
 it must not change language depending on who clicked last.
 
@@ -175,7 +218,8 @@ it must not change language depending on who clicked last.
 | `admin.reports.audit.readonly` | Drive log |
 | `spreadsheets.currentonly` | this spreadsheet only |
 | `script.container.ui` | menu and dialogs |
-| `script.scriptapp` | resume trigger |
+| `script.scriptapp` | resume triggers and scheduled report |
+| `userinfo.email` | record who scheduled the report, to tell other admins |
 
 No access to mailboxes or to Drive file contents.
 

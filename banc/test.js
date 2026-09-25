@@ -130,7 +130,7 @@ const charger = (options = {}) => {
     feuille.getRange(1, 1, comptes.length + 1, 1)
       .setValues([['Adresse du compte'], ...comptes.map((c) => [c])]);
   };
-  ecrireComptes(options.comptes || COMPTES);
+  if (!options.sansComptes) ecrireComptes(options.comptes || COMPTES);
   const feuille = (nom) => faux.classeur.getSheetByName(nom);
   const synthese = () => {
     const v = feuille('Synthèse').valeurs();
@@ -161,6 +161,9 @@ const memeJour = (cellule, jour) => {
   assert.strictEqual(`${cellule.getFullYear()}-${String(cellule.getMonth() + 1).padStart(2, '0')}-`
     + `${String(cellule.getDate()).padStart(2, '0')}`, jour);
 };
+
+/** Ligne d'un réglage dans l'onglet Paramètres, trouvée par sa clé et jamais par son rang. */
+const ligneReglage = (t, cle) => t.feuille('Paramètres').valeurs().findIndex(([c]) => c === cle) + 1;
 
 /* ------------------------------ Mini-cadre ------------------------------ */
 
@@ -199,8 +202,9 @@ cas('METRIQUE_VERSION vaut le fichier VERSION, et le CHANGELOG commence par elle
 
 cas('seuls les points d\'entrée sont des function déclarées', () => {
   const declarees = [...sourceMetrique.matchAll(/^function (\w+)/gm)].map((m) => m[1]).sort();
-  assert.deepStrictEqual(declarees, ['aPropos', 'abandonnerRapport', 'diagnostiquer',
-    'genererRapport', 'onOpen', 'reprendreRapport']);
+  assert.deepStrictEqual(declarees, ['aPropos', 'abandonnerRapport', 'arreterRapportProgramme',
+    'diagnostiquer', 'genererRapport', 'onOpen', 'programmerRapport', 'rapportProgramme',
+    'reprendreRapport']);
 });
 
 cas('chaque entrée de menu vise une function déclarée', () => {
@@ -306,7 +310,7 @@ cas('Défaut v0.2.0 : un titre de fichier reste du texte, jamais une formule ni 
 
 cas('l\'onglet Paramètres est posé avec ses explications', () => {
   const v = nominal.feuille('Paramètres').valeurs();
-  assert.strictEqual(v.length, 7);
+  assert.strictEqual(v.length, 10);
   v.slice(1).forEach(([cle, , explication]) => assert.ok(explication.length > 20, cle));
 });
 
@@ -469,7 +473,7 @@ cas('Défaut v0.2.0 : l\'état tient sous 9 Ko quand 179 jours sur 180 échouent
   }
   const t = charger({ reports: nouveauxReports({ pannes }) });
   t.lire('lireParametres_(SpreadsheetApp.getActive())');
-  t.feuille('Paramètres').getRange(2, 2).setValue(180);
+  t.feuille('Paramètres').getRange(ligneReglage(t, 'Jours d\'historique'), 2).setValue(180);
   t.sandbox.genererRapport();
   assert.deepStrictEqual(t.alertes, []);
   assert.ok(t.synthese().reserves.includes('179 jour(s) non chargé(s)'), t.synthese().reserves);
@@ -547,9 +551,9 @@ cas('une valeur saisie n\'est jamais réécrite, et la fenêtre suit le réglage
   const t = charger();
   t.sandbox.genererRapport();
   const p = t.feuille('Paramètres');
-  p.getRange(2, 2).setValue(14);
+  p.getRange(ligneReglage(t, 'Jours d\'historique'), 2).setValue(14);
   t.sandbox.genererRapport();
-  assert.strictEqual(p.getRange(2, 2).getValues()[0][0], 14);
+  assert.strictEqual(p.getRange(ligneReglage(t, 'Jours d\'historique'), 2).getValues()[0][0], 14);
   const s = t.synthese();
   assert.ok(s.entetes.includes('Mails reçus 14 j'), s.entetes.join());
   assert.strictEqual(s.lignes.get(ACCUEIL)['Mails reçus 14 j'], attendu(ACCUEIL, 'recus', 14));
@@ -564,7 +568,7 @@ const derniereAlerte = (t) => {
 cas('une valeur invalide s\'affiche avec ce qu\'il faut saisir, sans laisser d\'état', () => {
   const t = charger();
   t.lire('lireParametres_(SpreadsheetApp.getActive())');
-  t.feuille('Paramètres').getRange(2, 2).setValue('trente');
+  t.feuille('Paramètres').getRange(ligneReglage(t, 'Jours d\'historique'), 2).setValue('trente');
   t.sandbox.genererRapport();
   assert.match(derniereAlerte(t), /Le réglage « Jours d'historique » vaut « trente ».* Saisissez un nombre entier entre 7 et 180/);
   assert.strictEqual(t.lire('lireEtat_()'), null);
@@ -573,7 +577,7 @@ cas('une valeur invalide s\'affiche avec ce qu\'il faut saisir, sans laisser d\'
 cas('des seuils non croissants sont refusés', () => {
   const t = charger();
   t.lire('lireParametres_(SpreadsheetApp.getActive())');
-  t.feuille('Paramètres').getRange(4, 2).setValue(60);
+  t.feuille('Paramètres').getRange(ligneReglage(t, 'Seuil « actif » (jours)'), 2).setValue(60);
   t.sandbox.genererRapport();
   assert.match(derniereAlerte(t), /croissants/);
 });
@@ -701,6 +705,196 @@ cas('la langue n\'est lue qu\'une fois par exécution', () => {
   t.sandbox.aPropos();
   t.sandbox.diagnostiquer();
   assert.strictEqual(lectures, 1);
+});
+
+/* ============================ H. Rapport programmé ============================ */
+
+console.log('H. Rapport programmé');
+
+const hebdomadaires = (t) => t.declencheurs.filter((d) => d.getHandlerFunction() === 'rapportProgramme');
+
+cas('programmer pose un seul déclencheur, au jour et à l\'heure des Paramètres', () => {
+  const t = charger();
+  t.lire('lireParametres_(SpreadsheetApp.getActive())');
+  t.feuille('Paramètres').getRange(ligneReglage(t, 'Jour du rapport programmé'), 2).setValue('Jeudi');
+  t.feuille('Paramètres').getRange(ligneReglage(t, 'Heure du rapport programmé'), 2).setValue(0);
+  t.sandbox.programmerRapport();
+  t.sandbox.programmerRapport();
+  const poses = hebdomadaires(t);
+  assert.strictEqual(poses.length, 1, 'reprogrammer ne doit pas doubler le déclencheur');
+  assert.strictEqual(poses[0].jour, 'THURSDAY');
+  assert.strictEqual(poses[0].heure, 0, 'minuit est une heure valide');
+  assert.strictEqual(JSON.parse(t.proprietes.get('METRIQUE_PROGRAMMATION')).par, 'admin@exemple.fr');
+});
+
+cas('la confirmation nomme l\'identité et le risque des éditeurs', () => {
+  const t = charger();
+  t.sandbox.programmerRapport();
+  const { message } = t.alertes[0];
+  assert.match(message, /admin@exemple\.fr/);
+  assert.match(message, /Toute personne qui peut modifier ce classeur peut aussi modifier son script/);
+});
+
+cas('annuler la confirmation ne programme rien', () => {
+  const t = charger({ reponseAlerte: 'CANCEL' });
+  t.sandbox.programmerRapport();
+  assert.strictEqual(hebdomadaires(t).length, 0);
+  assert.strictEqual(t.proprietes.has('METRIQUE_PROGRAMMATION'), false);
+});
+
+cas('un second administrateur ne peut pas doubler la programmation', () => {
+  const t = charger();
+  t.proprietes.set('METRIQUE_PROGRAMMATION', JSON.stringify({ par: 'autre@exemple.fr', le: '2026-09-01T08:00:00Z' }));
+  t.sandbox.programmerRapport();
+  assert.strictEqual(hebdomadaires(t).length, 0);
+  assert.match(derniereAlerte(t), /déjà programmé par autre@exemple\.fr/);
+});
+
+cas('arrêter retire le déclencheur ; un autre compte est renvoyé vers son auteur', () => {
+  const t = charger();
+  t.sandbox.programmerRapport();
+  t.sandbox.arreterRapportProgramme();
+  assert.strictEqual(hebdomadaires(t).length, 0);
+  assert.strictEqual(t.proprietes.has('METRIQUE_PROGRAMMATION'), false);
+
+  const u = charger();
+  u.proprietes.set('METRIQUE_PROGRAMMATION', JSON.stringify({ par: 'autre@exemple.fr', le: '2026-09-01T08:00:00Z' }));
+  u.sandbox.arreterRapportProgramme();
+  assert.match(derniereAlerte(u), /seul ce compte peut l'arrêter/);
+  assert.ok(u.proprietes.has('METRIQUE_PROGRAMMATION'), 'la mention d\'un autre ne s\'efface pas');
+});
+
+cas('un jour invalide est refusé avec la liste des choix', () => {
+  const t = charger();
+  t.lire('lireParametres_(SpreadsheetApp.getActive())');
+  t.feuille('Paramètres').getRange(ligneReglage(t, 'Jour du rapport programmé'), 2).setValue('lundy');
+  t.sandbox.programmerRapport();
+  assert.match(derniereAlerte(t), /Choisissez parmi : lundi, mardi/);
+  assert.strictEqual(hebdomadaires(t).length, 0);
+});
+
+cas('le déclencheur produit un rapport complet, sans interface', () => {
+  const t = charger({ sansUi: true });
+  t.sandbox.rapportProgramme();
+  assert.strictEqual(t.synthese().reserves, RESERVE_GROUPE);
+  assert.strictEqual(t.lire('lireEtat_()'), null);
+});
+
+cas('le déclencheur ne relance pas un rapport déjà en cours', () => {
+  const t = charger({ msParAppel: 20000 });
+  t.sandbox.genererRapport();
+  const avant = t.lire('lireEtat_()').debut;
+  t.sandbox.rapportProgramme();
+  assert.strictEqual(t.lire('lireEtat_()').debut, avant);
+});
+
+cas('un échec du rapport programmé s\'écrit en tête de la synthèse', () => {
+  const t = charger({ comptes: [], sansUi: true });
+  assert.throws(() => t.sandbox.rapportProgramme(), /Aucune adresse valide/);
+  assert.match(String(t.feuille('Synthèse').valeurs()[0][0]), /^❌ .* a échoué : Aucune adresse valide/);
+});
+
+cas('le déclencheur hebdomadaire survit à la fin d\'un rapport et à ses reprises', () => {
+  const t = charger({ msParAppel: 20000 });
+  t.sandbox.programmerRapport();
+  t.sandbox.rapportProgramme();
+  t.reprendreJusquAuBout();
+  assert.strictEqual(hebdomadaires(t).length, 1);
+});
+
+cas('portée userinfo.email déclarée, justifiée au README', () => {
+  const manifeste = JSON.parse(fs.readFileSync(path.join(SOURCES, 'appsscript.json'), 'utf8'));
+  assert.ok(manifeste.oauthScopes.includes('https://www.googleapis.com/auth/userinfo.email'));
+  assert.ok(fs.readFileSync(path.join(RACINE, 'README.md'), 'utf8').includes('userinfo.email'));
+});
+
+/* ============================ I. Langue de l'interface ============================ */
+
+console.log('I. Langue de l\'interface');
+
+cas('Défaut v0.4.0 : le réglage « français » l\'emporte sur une langue de compte mal détectée', () => {
+  const t = charger({ locale: 'en' });
+  t.lire('lireParametres_(SpreadsheetApp.getActive())');
+  t.feuille('Paramètres').getRange(ligneReglage(t, 'Langue de l\'interface'), 2).setValue('Français');
+  t.sandbox.onOpen();
+  assert.strictEqual(t.menus[0].titre, 'Rapport d\'activité');
+  assert.strictEqual(t.menus[0].entrees[0].libelle, 'Générer le rapport');
+});
+
+cas('le réglage « anglais » force l\'anglais sur un compte français', () => {
+  const t = charger({ locale: 'fr' });
+  t.lire('lireParametres_(SpreadsheetApp.getActive())');
+  t.feuille('Paramètres').getRange(ligneReglage(t, 'Langue de l\'interface'), 2).setValue('anglais');
+  t.sandbox.onOpen();
+  assert.strictEqual(t.menus[0].titre, 'Activity report');
+});
+
+cas('« automatique » suit le compte ; un compte sans langue donne le français', () => {
+  const t = charger({ locale: 'en_GB' });
+  t.sandbox.onOpen();
+  assert.strictEqual(t.menus[0].titre, 'Activity report');
+  const u = charger({ locale: '' });
+  u.sandbox.onOpen();
+  assert.strictEqual(u.menus[0].titre, 'Rapport d\'activité');
+});
+
+cas('onOpen ne crée ni onglet ni ligne, et ne casse pas sur un réglage invalide', () => {
+  const t = charger({ locale: 'en' });
+  t.sandbox.onOpen();
+  assert.strictEqual(t.feuille('Paramètres'), null, 'onOpen ne doit rien écrire');
+  const u = charger({ locale: 'en' });
+  u.lire('lireParametres_(SpreadsheetApp.getActive())');
+  u.feuille('Paramètres').getRange(ligneReglage(u, 'Langue de l\'interface'), 2).setValue('klingon');
+  u.sandbox.onOpen();
+  assert.strictEqual(u.menus[0].titre, 'Activity report', 'réglage invalide : retour à l\'automatique');
+});
+
+cas('« À propos » dit ce que Google a répondu, et d\'où vient la langue', () => {
+  const t = charger({ locale: 'en_US' });
+  t.lire('lireParametres_(SpreadsheetApp.getActive())');
+  t.feuille('Paramètres').getRange(ligneReglage(t, 'Langue de l\'interface'), 2).setValue('français');
+  t.sandbox.aPropos();
+  const { message } = t.modales[t.modales.length - 1];
+  assert.match(message, /« en_US »/);
+  assert.match(message, /réglage « Langue de l'interface »/);
+});
+
+/* ============================ J. Installation ============================ */
+
+console.log('J. Installation');
+
+const noms = (t) => t.classeur.getSheets().map((f) => f.getName());
+
+cas('l\'installation retire la « Feuille 1 » vide de Google', () => {
+  const t = charger({ sansComptes: true });
+  t.sandbox.genererRapport();
+  assert.ok(!noms(t).includes('Feuille 1'), noms(t).join());
+  assert.ok(noms(t).includes('Comptes') && noms(t).includes('Paramètres'));
+});
+
+cas('et la « Sheet1 » d\'un compte en anglais', () => {
+  const t = charger({ sansComptes: true, premiereFeuille: 'Sheet1', locale: 'en' });
+  t.sandbox.genererRapport();
+  assert.ok(!noms(t).includes('Sheet1'), noms(t).join());
+});
+
+cas('et la « Feuil1 » d\'un classeur Excel importé', () => {
+  const t = charger({ sansComptes: true, premiereFeuille: 'Feuil1' });
+  t.sandbox.diagnostiquer();
+  assert.ok(!noms(t).includes('Feuil1'), noms(t).join());
+});
+
+cas('une première feuille où quelqu\'un a écrit est gardée', () => {
+  const t = charger({ sansComptes: true });
+  t.feuille('Feuille 1').getRange(1, 1).setValue('mes notes');
+  t.sandbox.genererRapport();
+  assert.ok(noms(t).includes('Feuille 1'));
+});
+
+cas('hors installation, rien n\'est retiré', () => {
+  const t = charger();
+  t.sandbox.genererRapport();
+  assert.ok(noms(t).includes('Feuille 1'), 'l\'onglet Comptes existait : ce n\'est pas une installation');
 });
 
 /* ------------------------------ Conclusion ------------------------------ */
