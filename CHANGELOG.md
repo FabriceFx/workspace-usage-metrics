@@ -110,7 +110,7 @@ Corrections issues d'une revue de code.
 
 ## [0.2.0] - 2026-09-25
 
-Revue de la version d'origine (`Code.gs`, notée 0.1.0) : voir `RAPPORT-REVUE.md`.
+Revue de la version d'origine (`Code.gs`, notée 0.1.0).
 
 ### Corrigé
 
