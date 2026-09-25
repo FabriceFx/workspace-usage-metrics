@@ -136,26 +136,36 @@ const convertir_ = (parametres) => {
  */
 const chargerUsageJour_ = (jour, cibles, params, uniteOrganisationnelle) => {
   const avertissements = new Set();
+  let rapportsRecus = 0;
+  // Filtrage page par page : sur un domaine de 50 000 utilisateurs, garder
+  // toutes les pages pour n'en retenir que vingt comptes coûte des dizaines de
+  // Mo par jour. Seuls les rapports des comptes cibles sortent de la page.
   const parcours = SocleApi.parcourir((jeton) => {
     const options = { maxResults: 1000, parameters: params.join(',') };
     if (jeton) options.pageToken = jeton;
     const reponse = SocleReprises.avecReprises(() => AdminReports.UserUsageReport.get(
       'all', jour, optionsUsage_(uniteOrganisationnelle, options)));
     (reponse.warnings || []).forEach((a) => avertissements.add(a.code));
-    return reponse;
+    const page = reponse.usageReports || [];
+    rapportsRecus += page.length;
+    return {
+      nextPageToken: reponse.nextPageToken,
+      usageReports: page.filter((rapport) => cibles.has(
+        String((rapport.entity && rapport.entity.userEmail) || '').toLowerCase())),
+    };
   }, { champ: 'usageReports' });
 
   if (!parcours.complet) {
     throw new Error(`pagination interrompue après ${parcours.pages} pages`);
   }
-  if (!parcours.elements.length && avertissements.has('DATA_NOT_AVAILABLE')) {
+  if (!rapportsRecus && avertissements.has('DATA_NOT_AVAILABLE')) {
     throw new Error('données non publiées par Google pour ce jour');
   }
 
   const valeurs = new Map();
   parcours.elements.forEach((rapport) => {
     const email = String((rapport.entity && rapport.entity.userEmail) || '').toLowerCase();
-    if (cibles.has(email)) valeurs.set(email, convertir_(rapport.parameters || []));
+    if (email) valeurs.set(email, convertir_(rapport.parameters || []));
   });
   return { valeurs, provisoire: avertissements.has('PARTIAL_DATA_AVAILABLE') };
 };

@@ -35,7 +35,10 @@ const METRIQUE_CHAINES = Object.freeze({
       + 'quand personne n\'ouvre ce classeur.\n\nToute personne qui peut modifier ce classeur '
       + 'peut aussi modifier son script, et ce code s\'exécuterait alors avec ces droits. '
       + 'Réservez la modification du classeur aux administrateurs.\n\nProgrammer ?',
-    progAdresseInconnue: 'adresse non communiquée par Google',
+    progAdresseRequise: 'Google ne communique pas votre adresse dans ce contexte. Sans elle, '
+      + 'impossible de retenir qui a programmé le rapport, ni d\'empêcher un second administrateur '
+      + 'd\'en programmer un autre. Programmez depuis un compte du domaine, ou vérifiez que '
+      + 'l\'autorisation « adresse e-mail » a bien été accordée au script.',
     progFait: 'Rapport programmé chaque {jour} vers {heure} h.',
     progDejaAutre: 'Le rapport est déjà programmé par {par} depuis le {le}. Un déclencheur '
       + 'appartient à qui l\'a posé : demandez-lui de l\'arrêter avant d\'en programmer un autre.',
@@ -173,7 +176,10 @@ const METRIQUE_CHAINES = Object.freeze({
       + 'this spreadsheet.\n\nAnyone who can edit this spreadsheet can also edit its script, and '
       + 'that code would then run with this access. Keep edit rights on the spreadsheet for '
       + 'administrators only.\n\nSchedule?',
-    progAdresseInconnue: 'address not provided by Google',
+    progAdresseRequise: 'Google does not provide your address in this context. Without it, the '
+      + 'tool cannot record who scheduled the report, nor stop a second administrator from '
+      + 'scheduling another one. Schedule from a domain account, or check that the « email '
+      + 'address » permission was granted to the script.',
     progFait: 'Report scheduled every {jour} around {heure}:00.',
     progDejaAutre: 'The report is already scheduled by {par} since {le}. A trigger belongs to '
       + 'whoever created it: ask them to stop it before scheduling another one.',
@@ -303,8 +309,8 @@ const METRIQUE_CHAINES = Object.freeze({
  */
 const METRIQUE_LANGUE_ = { code: '', locale: '', source: '', declaree: false };
 
-/** Valeurs acceptées pour le réglage « Langue de l'interface ». */
-const LANGUES_REGLEES = Object.freeze({ français: 'fr', francais: 'fr', anglais: 'en' });
+/** Code de langue de chaque choix du réglage « Langue de l'interface » ; « automatique » n'en a pas. */
+const LANGUES_REGLEES = Object.freeze({ français: 'fr', anglais: 'en' });
 
 /**
  * Le réglage « Langue de l'interface », lu **sans rien écrire ni lever** :
@@ -316,9 +322,12 @@ const langueReglee_ = () => {
   try {
     const feuille = SpreadsheetApp.getActive().getSheetByName(CONFIG.ONGLET_PARAMETRES);
     if (!feuille || feuille.getLastRow() < 2) return '';
+    // Clé et règle de reconnaissance prises au référentiel, comme le fait
+    // lireParametres_ : un réglage que le menu accepte, le rapport l'accepte.
+    const reglage = PARAMETRES_DEFAUT.find((p) => p.nom === 'langueInterface');
     const ligne = feuille.getRange(2, 1, feuille.getLastRow() - 1, 2).getValues()
-      .find(([cle]) => String(cle).trim() === 'Langue de l\'interface');
-    return ligne ? LANGUES_REGLEES[String(ligne[1]).trim().toLowerCase()] || '' : '';
+      .find(([cle]) => String(cle).trim() === reglage.cle);
+    return ligne ? LANGUES_REGLEES[choixReconnu_(reglage, String(ligne[1]))] || '' : '';
   } catch (erreur) {
     console.log(`Réglage de langue illisible (${erreur.message}) : détection automatique.`);
     return '';

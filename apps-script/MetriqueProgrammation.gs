@@ -55,6 +55,12 @@ const programmerRapport_ = () => {
   const classeur = SpreadsheetApp.getActive();
   const { jourProgramme, heureProgramme } = lireParametres_(classeur);
   const moi = adresseCourante_();
+  // Sans adresse, la propriété du déclencheur ne peut pas être retenue : un
+  // second administrateur en poserait un autre, ou effacerait la mention.
+  if (!moi) {
+    afficher_(t_('menuProgrammer'), t_('progAdresseRequise'));
+    return;
+  }
   const existante = lireProgrammation_();
   const jour = t_(JOURS_PROGRAMMATION[jourProgramme].cle);
 
@@ -67,7 +73,7 @@ const programmerRapport_ = () => {
 
   const ui = SpreadsheetApp.getUi();
   const reponse = ui.alert(t_('progConfirmTitre'), t_('progConfirmMessage', {
-    jour, heure: heureProgramme, par: moi || t_('progAdresseInconnue'),
+    jour, heure: heureProgramme, par: moi,
   }), ui.ButtonSet.OK_CANCEL);
   if (reponse !== ui.Button.OK) return;
 

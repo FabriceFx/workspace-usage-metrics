@@ -79,7 +79,7 @@ const statutActivite_ = (jour, aujourdhui, parametres) => {
  * mesuré ») au lieu de valoir 0.
  */
 const analyserCompte_ = (compte, jours, dernierJourDrive, contexte) => {
-  const { params, parametres, aujourdhui, debutFenetre } = contexte;
+  const { params, parametres, aujourdhui, debutFenetre, largeur } = contexte;
   const mesure = new Set(params);
   const court = {};
   const long = {};
@@ -105,7 +105,7 @@ const analyserCompte_ = (compte, jours, dernierJourDrive, contexte) => {
 
   if (!recent) {
     return [compte, '❔ Absent du rapport d\'usage (groupe, alias, compte suspendu, hors de '
-      + 'l\'unité organisationnelle ou inexistant ?)', ...Array(ENTETES_SYNTHESE_LARGEUR - 2).fill('')];
+      + 'l\'unité organisationnelle ou inexistant ?)', ...Array(largeur - 2).fill('')];
   }
 
   const valeur = (parametre, n) => (mesure.has(parametre) ? n : '');

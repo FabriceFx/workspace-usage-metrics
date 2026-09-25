@@ -97,7 +97,7 @@ const demarrerRapport_ = () => {
   const jourReference = trouverDerniereDateDispo_(parametres.uniteOrganisationnelle);
   const params = paramsValides_(jourReference, parametres.uniteOrganisationnelle);
   const jours = joursFenetre_({ parametres, jourReference });
-  const signature = signatureCache_(comptes, params);
+  const signature = signatureCache_(comptes, params, parametres.uniteOrganisationnelle);
   const joursEnCache = preparerCache_(classeur, signature, jours);
 
   ecrireEtat_({
@@ -133,7 +133,7 @@ const poursuivreRapport_ = () => {
   const budget = SocleExecution.budget({ msMax: CONFIG.BUDGET_MS });
   const classeur = SpreadsheetApp.getActive();
   const comptes = lireComptes_(classeur);
-  if (signatureCache_(comptes, etat.params) !== etat.signature) {
+  if (signatureCache_(comptes, etat.params, etat.parametres.uniteOrganisationnelle) !== etat.signature) {
     throw erreurUtilisateur_('erreurListeModifiee', { onglet: CONFIG.ONGLET_COMPTES });
   }
 
@@ -154,7 +154,7 @@ const poursuivreRapport_ = () => {
 /** Rend vrai quand l'étape est finie, faux quand une reprise a été programmée. */
 const avancerUsage_ = (classeur, etat, comptes, budget) => {
   const cibles = new Set(comptes);
-  const { complets } = lireCache_(classeur);
+  const complets = lireJoursComplets_(classeur);
   const aFaire = joursFenetre_(etat).filter((jour) => !complets.has(jour)
     && !etat.joursEchec.includes(jour) && !etat.joursProvisoires.includes(jour));
 
@@ -197,7 +197,10 @@ const avancerDrive_ = (classeur, etat, comptes, budget) => {
         compte, etat.debutDrive, etat.jetonDrive, permet);
       ajouterLignesDrive_(classeur, lignes);
       if (!complet && !permet()) {
-        suite = jetonSuivant; // budget épuisé au milieu du journal de ce compte
+        // Budget épuisé. Sans jeton, aucune page n'a été lue : on reprendra ce
+        // compte au début. Avancer l'index le sauterait sans le compter nulle part.
+        if (!jetonSuivant) return suspendre_(etat);
+        suite = jetonSuivant;
       } else if (!complet) {
         etat.drivesTronques += 1; // plafond de pages atteint : le dire
       }
@@ -244,6 +247,7 @@ const terminerRapport_ = (classeur, etat, comptes) => {
     parametres: etat.parametres,
     aujourdhui: SocleDates.maintenantJour(),
     debutFenetre: decalerJour_(etat.jourReference, 1 - etat.parametres.joursHistorique),
+    largeur: entetesSynthese_(etat.parametres.joursHistorique).entetes.length,
   };
   const lignes = comptes.map((compte) => analyserCompte_(
     compte, jours, dernierJourDrive.get(compte) || '', contexte));

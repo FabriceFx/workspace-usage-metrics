@@ -49,6 +49,8 @@ const RH = 'rh@exemple.fr';
 // Hors de la liste par défaut : deux boîtes génériques utilisées sans connexion.
 const SECRETARIAT = 'secretariat@exemple.fr'; // envoie, ne se connecte jamais
 const STANDARD = 'standard@exemple.fr'; // reçoit et trie, n'envoie ni ne se connecte
+// Adresse valide qui commence par un tiret : Sheets la prendrait pour une formule.
+const TIRET = '-accueil@exemple.fr';
 const COMPTES = [GROUPE, ACCUEIL, COMPTA, RH]; // le groupe en premier : Défaut v0.1
 
 const hash = (texte) => [...texte].reduce((h, c) => ((h * 31) + c.charCodeAt(0)) >>> 0, 7);
@@ -92,7 +94,7 @@ const parametres = (email, jour) => {
 
 /** 2 500 agents : trois pages de 1 000, l'accueil en tête et les RH en dernière page. */
 const UTILISATEURS = [ACCUEIL,
-  ...Array.from({ length: 2500 }, (_, i) => `agent${i}@exemple.fr`), COMPTA, RH, SECRETARIAT, STANDARD];
+  ...Array.from({ length: 2500 }, (_, i) => `agent${i}@exemple.fr`), COMPTA, RH, SECRETARIAT, STANDARD, TIRET];
 
 const evenements = (email, nombre, depuis) => Array.from({ length: nombre }, (_, i) => ({
   time: new Date(Date.parse(`${depuis}T12:00:00Z`) + i * 60000).toISOString(),
@@ -146,10 +148,15 @@ const charger = (options = {}) => {
     const lignes = new Map(v.slice(3).map((l) => [l[0], Object.fromEntries(entetes.map((e, i) => [e, l[i]]))]));
     return { bandeau: v[0][0], reserves: v[1][0], entetes, lignes };
   };
-  /** Rejoue les reprises comme le ferait Google, jusqu'à la fin. */
+  /**
+   * Rejoue les reprises comme le ferait Google, jusqu'à la fin. Un déclencheur
+   * se réveille sous l'identité de son auteur : on ne rejoue que ceux du
+   * compte courant.
+   */
   const reprendreJusquAuBout = () => {
     let tours = 0;
-    while (faux.declencheurs.some((d) => d.getHandlerFunction() === 'reprendreRapport')) {
+    while (faux.declencheurs.some((d) => d.getHandlerFunction() === 'reprendreRapport'
+      && d.proprietaire === faux.courant.email)) {
       tours += 1;
       assert.ok(tours < 100, 'le rapport ne se termine pas');
       sandbox.reprendreRapport();
@@ -947,6 +954,134 @@ cas('la note de l\'en-tête dit que c\'est une présomption', () => {
 
 cas('les colonnes de date restent des dates après l\'ajout de la colonne', () => {
   memeJour(S.lignes.get(ACCUEIL)['Dernière activité Drive'], decaler(AUJOURDHUI, -2));
+});
+
+/* ============================ L. Revue de code v0.5.0 ============================ */
+
+console.log('L. Revue de code v0.5.0');
+
+cas('Défaut v0.5.0 : changer d\'unité organisationnelle vide le cache', () => {
+  const t = charger({ reports: nouveauxReports({ unites: { 'id:compta': [COMPTA] } }) });
+  t.sandbox.genererRapport();
+  t.feuille('Paramètres').getRange(ligneReglage(t, 'Unité organisationnelle'), 2).setValue('id:compta');
+  t.compteurs.usageParJour = {};
+  t.sandbox.genererRapport();
+  assert.deepStrictEqual(t.alertes, []);
+  assert.strictEqual(pagesChargees(t), 30, 'les 30 jours doivent être redemandés pour la nouvelle UO');
+  assert.ok(t.synthese().lignes.get(ACCUEIL)['Statut global'].startsWith('❔'),
+    'un compte hors de l\'UO ne doit pas survivre par le cache');
+});
+
+cas('Défaut v0.5.0 : un budget épuisé avant la première page ne saute pas le compte', () => {
+  const t = charger();
+  t.lire('preparerDetailDrive_(SpreadsheetApp.getActive())');
+  const etat = { phase: 'drive', indexDrive: 0, jetonDrive: null, debutDrive: decaler(AUJOURDHUI, -7),
+    drivesEchec: [], drivesEchecTotal: 0, drivesTronques: 0, joursTraites: 0,
+    parametres: { joursHistorique: 30 } };
+  let n = 0;
+  const avancer = t.lire('avancerDrive_');
+  // Vrai au contrôle de la boucle, faux juste avant la première page.
+  assert.strictEqual(avancer(t.classeur, etat, [RH], { permet: () => (n += 1) <= 1 }), false);
+  assert.strictEqual(etat.indexDrive, 0, 'le compte ne doit pas être passé');
+  assert.strictEqual(avancer(t.classeur, etat, [RH], { permet: () => true }), true);
+  assert.strictEqual(t.feuille('Détail Drive').valeurs().length - 1, 2500);
+});
+
+cas('Défaut v0.5.0 : « Francais » sans cédille vaut pour le menu et pour le rapport', () => {
+  const t = charger({ locale: 'en' });
+  t.lire('lireParametres_(SpreadsheetApp.getActive())');
+  t.feuille('Paramètres').getRange(ligneReglage(t, 'Langue de l\'interface'), 2).setValue('Francais');
+  t.sandbox.onOpen();
+  assert.strictEqual(t.menus[0].titre, 'Rapport d\'activité');
+  t.sandbox.genererRapport();
+  assert.deepStrictEqual(t.alertes, [], 'le réglage accepté par le menu ne doit pas bloquer le rapport');
+});
+
+cas('Défaut v0.5.0 : une adresse qui commence par un tiret survit au cache', () => {
+  const t = charger({ comptes: [ACCUEIL, `'${TIRET}`] });
+  t.sandbox.genererRapport();
+  const premier = t.synthese().lignes.get(TIRET)['Mails reçus 30 j'];
+  assert.strictEqual(premier, attendu(TIRET, 'recus', 30));
+  t.compteurs.usageParJour = {};
+  t.sandbox.genererRapport();
+  assert.strictEqual(pagesChargees(t), 0, 'second rapport : tout vient du cache');
+  assert.strictEqual(t.synthese().lignes.get(TIRET)['Mails reçus 30 j'], premier);
+});
+
+cas('Défaut v0.5.0 : sans adresse connue, on ne programme pas', () => {
+  const t = charger({ utilisateur: '' });
+  t.sandbox.programmerRapport();
+  assert.strictEqual(hebdomadaires(t).length, 0);
+  assert.match(derniereAlerte(t), /adresse/);
+});
+
+cas('Défaut v0.5.0 : un second administrateur ne voit ni ne retire le déclencheur du premier', () => {
+  const t = charger();
+  t.sandbox.programmerRapport();
+  t.courant.email = 'autre@exemple.fr';
+  t.alertes.length = 0;
+  t.sandbox.programmerRapport();
+  assert.match(derniereAlerte(t), /déjà programmé par admin@exemple\.fr/);
+  t.alertes.length = 0;
+  t.sandbox.arreterRapportProgramme();
+  assert.match(derniereAlerte(t), /seul ce compte peut l'arrêter/);
+  assert.strictEqual(hebdomadaires(t).length, 1, 'le déclencheur du premier reste en place');
+  t.courant.email = 'admin@exemple.fr';
+  t.sandbox.arreterRapportProgramme();
+  assert.strictEqual(hebdomadaires(t).length, 0);
+});
+
+cas('un rapport repris par un autre administrateur ne casse pas la reprise du premier', () => {
+  const t = charger({ msParAppel: 20000 });
+  t.sandbox.genererRapport();
+  const etat = t.lire('lireEtat_()');
+  etat.majLe = new Date(Date.now() - 20 * 60 * 1000).toISOString();
+  t.proprietes.set('METRIQUE_ETAT', JSON.stringify(etat));
+  t.courant.email = 'autre@exemple.fr';
+  t.sandbox.genererRapport(); // ne voit pas la reprise du premier : le croit orphelin
+  t.reprendreJusquAuBout();
+  // La reprise du premier se réveille ensuite, sur un rapport déjà terminé.
+  t.courant.email = 'admin@exemple.fr';
+  t.reprendreJusquAuBout();
+  assert.strictEqual(t.lire('lireEtat_()'), null);
+  assert.strictEqual(t.synthese().reserves, RESERVE_GROUPE);
+});
+
+cas('Défaut v0.5.0 : le journal Drive se relit par en-tête, deux colonnes seulement', () => {
+  const t = charger();
+  t.sandbox.genererRapport();
+  const feuille = t.feuille('Détail Drive');
+  const lignes = feuille.valeurs().length - 1;
+  feuille.cellulesLues = 0;
+  t.lire('trierEtLireDetailDrive_(SpreadsheetApp.getActive())');
+  assert.ok(feuille.cellulesLues <= 2 * lignes + 20, `${feuille.cellulesLues} cellules lues pour ${lignes} lignes`);
+
+  // Colonnes dans un autre ordre : la lecture suit les en-têtes.
+  const u = charger();
+  const d = u.classeur.insertSheet('Détail Drive');
+  d.getRange(1, 1, 3, 3).setValues([['Date', 'Action', 'Compte'],
+    [new Date('2026-09-01T10:00:00Z'), 'view', ACCUEIL], [new Date('2026-09-03T10:00:00Z'), 'edit', ACCUEIL]]);
+  const derniers = u.lire('trierEtLireDetailDrive_(SpreadsheetApp.getActive())');
+  assert.strictEqual(derniers.get(ACCUEIL), '2026-09-03');
+});
+
+cas('la reprise lit les jours complets sans relire les valeurs du cache', () => {
+  const t = charger();
+  t.sandbox.genererRapport();
+  const cache = t.feuille('_cache_usage');
+  const lignes = cache.valeurs().length - 1;
+  cache.cellulesLues = 0;
+  const complets = t.lire('lireJoursComplets_(SpreadsheetApp.getActive())');
+  assert.strictEqual(complets.size, 30);
+  assert.ok(cache.cellulesLues <= 2 * lignes, `${cache.cellulesLues} cellules lues pour ${lignes} lignes`);
+});
+
+cas('la largeur d\'une ligne absente vient des en-têtes, sans constante à tenir à jour', () => {
+  assert.ok(!/ENTETES_SYNTHESE_LARGEUR/.test(sourceMetrique));
+  const t = charger({ comptes: [GROUPE] });
+  t.sandbox.genererRapport();
+  const s = t.synthese();
+  assert.strictEqual(Object.keys(s.lignes.get(GROUPE)).length, s.entetes.length);
 });
 
 /* ------------------------------ Conclusion ------------------------------ */

@@ -21,11 +21,17 @@
 const ENTETES_CACHE = Object.freeze(['Jour', 'Compte', 'Valeurs']);
 const TEMOIN_JOUR_COMPLET = '*';
 
-/** Empreinte courte de la liste des comptes et des paramètres. */
-const signatureCache_ = (comptes, params) => Utilities.base64Encode(Utilities.computeDigest(
-  Utilities.DigestAlgorithm.SHA_256,
-  `${[...comptes].sort().join(',')}|${[...params].sort().join(',')}`,
-  Utilities.Charset.UTF_8));
+/**
+ * Empreinte de ce qui détermine le contenu du cache : comptes, paramètres et
+ * unité organisationnelle. L'UO en fait partie : un jour chargé pour tout le
+ * domaine contient des comptes qu'une UO exclurait, et les garder ferait
+ * survivre par le cache un compte que le rapport doit dire absent.
+ */
+const signatureCache_ = (comptes, params, uniteOrganisationnelle) => Utilities.base64Encode(
+  Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256,
+    `${[...comptes].sort().join(',')}|${[...params].sort().join(',')}|${uniteOrganisationnelle || ''}`,
+    Utilities.Charset.UTF_8));
 
 const ongletCache_ = (classeur) => {
   const existant = classeur.getSheetByName(CONFIG.ONGLET_CACHE);
@@ -76,6 +82,23 @@ const lireCache_ = (classeur) => {
 };
 
 /**
+ * Les seuls jours complets, sans relire ni décoder les valeurs : deux colonnes
+ * au lieu de trois, et aucun `JSON.parse`. C'est tout ce dont une reprise a
+ * besoin pour savoir quels jours restent à charger.
+ */
+const lireJoursComplets_ = (classeur) => {
+  const feuille = ongletCache_(classeur);
+  const complets = new Set();
+  const hauteur = feuille.getLastRow();
+  if (hauteur < 2) return complets;
+  feuille.getRange(2, 1, hauteur - 1, 2).getValues().forEach(([brut, compte]) => {
+    const jour = SocleDates.jour(brut);
+    if (jour && compte === TEMOIN_JOUR_COMPLET) complets.add(jour);
+  });
+  return complets;
+};
+
+/**
  * Prépare le cache pour un nouveau rapport : ne garde que les jours complets
  * de la fenêtre, et repart de zéro si la liste de comptes ou de paramètres a
  * changé. Rend le nombre de jours conservés.
@@ -91,7 +114,7 @@ const preparerCache_ = (classeur, signature, jours) => {
   const lignes = [];
   gardes.forEach((jour) => {
     (valeurs.get(jour) || new Map()).forEach((v, compte) => {
-      lignes.push([jour, compte, JSON.stringify(v)]);
+      lignes.push([jour, enTexte_(compte), JSON.stringify(v)]);
     });
     lignes.push([jour, TEMOIN_JOUR_COMPLET, '']);
   });
@@ -110,7 +133,9 @@ const preparerCache_ = (classeur, signature, jours) => {
  */
 const ecrireJourEnCache_ = (classeur, jour, valeurs, definitif) => {
   const feuille = ongletCache_(classeur);
-  const lignes = [...valeurs].map(([compte, v]) => [jour, compte, JSON.stringify(v)]);
+  // L'adresse forcée en texte : « -accueil@… » est valide, et Sheets la
+  // prendrait pour une formule — la ligne ne se relirait plus sous son adresse.
+  const lignes = [...valeurs].map(([compte, v]) => [jour, enTexte_(compte), JSON.stringify(v)]);
   if (definitif) lignes.push([jour, TEMOIN_JOUR_COMPLET, '']);
   if (!lignes.length) return;
   feuille.getRange(feuille.getLastRow() + 1, 1, lignes.length, ENTETES_CACHE.length).setValues(lignes);

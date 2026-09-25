@@ -10,14 +10,15 @@ const ENTETES_DRIVE = Object.freeze([
   'Compte', 'Date', 'Action', 'Titre du fichier', 'Type', 'Propriétaire', 'Visibilité',
 ]);
 
-const ENTETES_SYNTHESE_LARGEUR = 21;
-
 /**
  * En-têtes des colonnes qui portent un jour `yyyy-MM-dd`. Repérées par leur
  * nom, jamais par leur rang : une colonne ajoutée ne doit décaler aucune date.
  */
 const ENTETES_JOUR = Object.freeze(['Dernière activité', 'Dernière connexion',
   'Dernière action Gmail', 'Dernière activité Drive']);
+
+/** Lignes lues par appel dans un onglet qui peut compter des centaines de milliers de lignes. */
+const LIGNES_PAR_BLOC = 20000;
 
 const LIGNE_BANDEAU = 1;
 const LIGNE_ENTETES_SYNTHESE = 3;
@@ -202,18 +203,39 @@ const ajouterLignesDrive_ = (classeur, lignes) => {
 
 /**
  * Trie le journal du plus récent au plus ancien, puis rend compte → dernier
- * jour d'événement. Les dates reviennent de Sheets en objets `Date` : elles
- * passent par `SocleDates.jour` avant toute comparaison.
+ * jour d'événement.
+ *
+ * Les colonnes se retrouvent par leur en-tête, et l'on ne lit que les deux
+ * utiles, par blocs : ce journal peut compter des centaines de milliers de
+ * lignes, et le tout tient dans la marge de fin de rapport. Les dates
+ * reviennent de Sheets en objets `Date` : elles passent par `SocleDates.jour`
+ * avant toute comparaison.
  */
 const trierEtLireDetailDrive_ = (classeur) => {
   const derniers = new Map();
   const feuille = classeur.getSheetByName(CONFIG.ONGLET_DETAIL_DRIVE);
   if (!feuille || feuille.getLastRow() < 2) return derniers;
-  const plage = feuille.getRange(2, 1, feuille.getLastRow() - 1, ENTETES_DRIVE.length);
-  plage.sort({ column: 2, ascending: false });
-  plage.getValues().forEach(([compte, date]) => {
-    const jour = SocleDates.jour(date);
-    if (jour && jour > (derniers.get(compte) || '')) derniers.set(compte, jour);
-  });
+
+  const entete = feuille.getRange(1, 1, 1, feuille.getLastColumn()).getValues()[0]
+    .map((titre) => String(titre).trim());
+  const colonneCompte = entete.indexOf('Compte') + 1;
+  const colonneDate = entete.indexOf('Date') + 1;
+  if (!colonneCompte || !colonneDate) {
+    throw new Error(`L'onglet « ${CONFIG.ONGLET_DETAIL_DRIVE} » n'a plus ses colonnes « Compte » `
+      + 'et « Date ». Relancez « Générer le rapport » : l\'onglet sera reconstruit.');
+  }
+
+  const derniere = feuille.getLastRow();
+  feuille.getRange(2, 1, derniere - 1, feuille.getLastColumn())
+    .sort({ column: colonneDate, ascending: false });
+  for (let debut = 2; debut <= derniere; debut += LIGNES_PAR_BLOC) {
+    const hauteur = Math.min(LIGNES_PAR_BLOC, derniere - debut + 1);
+    const comptes = feuille.getRange(debut, colonneCompte, hauteur, 1).getValues();
+    const dates = feuille.getRange(debut, colonneDate, hauteur, 1).getValues();
+    comptes.forEach(([compte], i) => {
+      const jour = SocleDates.jour(dates[i][0]);
+      if (jour && jour > (derniers.get(compte) || '')) derniers.set(compte, jour);
+    });
+  }
   return derniers;
 };

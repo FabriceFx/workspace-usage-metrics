@@ -3,6 +3,26 @@
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 Ce projet suit le [Semantic Versioning](https://semver.org/lang/fr/).
 
+## [0.5.1] - 2026-09-25
+
+Corrections issues d'une revue de code.
+
+### Corrigé
+
+- Changer d'unité organisationnelle vide désormais le cache : un compte hors de la nouvelle UO survivait par les jours déjà chargés.
+- Un compte dont le journal Drive n'avait pas commencé quand le temps s'épuisait était sauté sans être signalé.
+- « Francais » sans cédille était accepté par le menu mais refusé par le rapport.
+- Une adresse commençant par un tiret (« -accueil@… ») devenait une formule dans le cache.
+- Programmer sans adresse connue permettait à un second administrateur de doubler le rapport programmé.
+
+### Modifié
+
+- Le journal Drive se relit par en-tête, deux colonnes seulement et par blocs.
+- Les rapports d'usage sont filtrés page par page, sans garder tout le domaine en mémoire.
+- Une reprise lit les jours complets sans décoder tout le cache.
+- La largeur de la synthèse vient des en-têtes, et non plus d'une constante.
+- Banc : le faux Google applique l'unité organisationnelle, ne rend à chacun que ses propres déclencheurs et compte les cellules lues.
+
 ## [0.5.0] - 2026-09-25
 
 ### Ajouté

@@ -41,6 +41,10 @@ const installerFauxGoogle = (sandbox, DateContexte, options = {}) => {
   const horloge = { decalage: 0 };
   const compteurs = { usage: 0, activites: 0, usageParJour: {} };
   const declencheurs = [];
+  // Qui exécute. Les déclencheurs appartiennent à leur auteur : Google ne rend
+  // à chacun que les siens, et un faux qui les rendrait tous validerait une
+  // logique de propriété qui ne fonctionne pas en production.
+  const courant = { email: options.utilisateur ?? 'admin@exemple.fr' };
   const proprietes = new Map();
   const feuilles = [];
   const toasts = [];
@@ -141,6 +145,7 @@ const installerFauxGoogle = (sandbox, DateContexte, options = {}) => {
     setValue(valeur) { return this.setValues([[valeur]]); }
 
     getValues() {
+      this.feuille.cellulesLues += this.hauteur * this.largeur;
       const sortie = [];
       for (let l = 0; l < this.hauteur; l += 1) {
         const source = this.feuille.cellules[this.ligne - 1 + l] || [];
@@ -190,7 +195,7 @@ const installerFauxGoogle = (sandbox, DateContexte, options = {}) => {
 
   class FausseFeuille {
     constructor(nom) {
-      Object.assign(this, { nom, cellules: [], notes: null, formats: [], masquee: false });
+      Object.assign(this, { nom, cellules: [], notes: null, formats: [], masquee: false, cellulesLues: 0 });
     }
 
     getName() { return this.nom; }
@@ -308,10 +313,17 @@ const installerFauxGoogle = (sandbox, DateContexte, options = {}) => {
         }
         return { usageReports: [rapport(userKey)], warnings };
       }
+      // L'UO filtre les utilisateurs rendus ; une UO inconnue est refusée.
+      let perimetre = reports.utilisateurs;
+      if (opts.orgUnitID) {
+        const membres = (reports.unites || {})[opts.orgUnitID];
+        if (!membres) throw new Error('API call to reports.userUsageReport.get failed with error: Invalid org unit id');
+        perimetre = reports.utilisateurs.filter((u) => membres.includes(u));
+      }
       const taille = opts.maxResults || 1000;
       const debut = opts.pageToken ? Number(opts.pageToken) : 0;
-      const tranche = reports.utilisateurs.slice(debut, debut + taille);
-      const suite = debut + taille < reports.utilisateurs.length ? String(debut + taille) : undefined;
+      const tranche = perimetre.slice(debut, debut + taille);
+      const suite = debut + taille < perimetre.length ? String(debut + taille) : undefined;
       const reponse = { usageReports: tranche.map(rapport), warnings };
       if (suite) reponse.nextPageToken = suite;
       return reponse;
@@ -389,7 +401,7 @@ const installerFauxGoogle = (sandbox, DateContexte, options = {}) => {
     Session: {
       getScriptTimeZone: () => 'Europe/Paris',
       getActiveUserLocale: () => options.locale || 'fr',
-      getActiveUser: () => ({ getEmail: () => options.utilisateur ?? 'admin@exemple.fr' }),
+      getActiveUser: () => ({ getEmail: () => courant.email }),
     },
 
     Utilities: {
@@ -451,10 +463,10 @@ const installerFauxGoogle = (sandbox, DateContexte, options = {}) => {
     },
 
     ScriptApp: {
-      getProjectTriggers: () => declencheurs.slice(),
+      getProjectTriggers: () => declencheurs.filter((d) => d.proprietaire === courant.email),
       deleteTrigger: (cible) => {
         const i = declencheurs.indexOf(cible);
-        if (i === -1) throw new Error('Trigger not found');
+        if (i === -1 || cible.proprietaire !== courant.email) throw new Error('Trigger not found');
         declencheurs.splice(i, 1);
       },
       // Des objets, comme les énumérations de Google : une chaîne « MONDAY »
@@ -476,7 +488,7 @@ const installerFauxGoogle = (sandbox, DateContexte, options = {}) => {
                 return constructeur;
               },
               create: () => {
-                const d = { getHandlerFunction: () => nom, ...hebdo };
+                const d = { getHandlerFunction: () => nom, proprietaire: courant.email, ...hebdo };
                 declencheurs.push(d);
                 return d;
               },
@@ -486,7 +498,7 @@ const installerFauxGoogle = (sandbox, DateContexte, options = {}) => {
           after: (ms) => ({
             create: () => {
               if (typeof ms !== 'number') throw new Error('Invalid argument: after');
-              const d = { getHandlerFunction: () => nom, apres: ms };
+              const d = { getHandlerFunction: () => nom, proprietaire: courant.email, apres: ms };
               declencheurs.push(d);
               return d;
             },
@@ -500,7 +512,7 @@ const installerFauxGoogle = (sandbox, DateContexte, options = {}) => {
   if (options.premiereFeuille !== null) classeur.insertSheet(options.premiereFeuille || 'Feuille 1');
 
   sandbox.__horloge = horloge;
-  return { menus, alertes, modales, reports, horloge, compteurs, declencheurs, proprietes, feuilles, classeur, toasts, verrou, pannes, FausseFeuille };
+  return { courant, menus, alertes, modales, reports, horloge, compteurs, declencheurs, proprietes, feuilles, classeur, toasts, verrou, pannes, FausseFeuille };
 };
 
 module.exports = { installerFauxGoogle };

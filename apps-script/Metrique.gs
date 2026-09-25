@@ -21,7 +21,7 @@
  */
 
 /** Le seul numéro de version courant du projet. Le banc vérifie qu'il vaut `VERSION`. */
-const METRIQUE_VERSION = '0.5.0';
+const METRIQUE_VERSION = '0.5.1';
 
 /**
  * Constantes techniques. Rien ici ne relève du jugement : les fenêtres, seuils
@@ -260,6 +260,15 @@ function aPropos() {
 /* ============================ PARAMÈTRES ============================ */
 
 /**
+ * Le choix saisi, sous sa forme canonique, ou `''`. Comparé sans casse ni
+ * accents : « Francais » vaut « français ». La même règle sert au menu et au
+ * rapport — deux règles différentes, et un réglage accepté par l'un bloquerait
+ * l'autre.
+ */
+const choixReconnu_ = (reglage, texte) => reglage.choix
+  .find((c) => SocleTexte.comparable(c) === SocleTexte.comparable(texte)) || '';
+
+/**
  * Lit l'onglet « Paramètres », en y posant les réglages absents.
  *
  * Une valeur hors bornes lève plutôt que de retomber sur le défaut : un
@@ -288,13 +297,17 @@ const lireParametres_ = (classeur) => {
     const brute = presents.has(p.cle) ? presents.get(p.cle) : p.valeur;
     if (p.texte) {
       const texte = String(brute ?? '').trim();
-      const choix = p.choix && texte.toLowerCase();
-      if (p.choix && !p.choix.includes(choix)) {
+      if (!p.choix) {
+        parametres[p.nom] = texte;
+        return;
+      }
+      const choix = choixReconnu_(p, texte);
+      if (!choix) {
         throw erreurUtilisateur_('erreurReglageChoix', {
           cle: p.cle, valeur: texte, onglet: CONFIG.ONGLET_PARAMETRES, choix: p.choix.join(', '),
         });
       }
-      parametres[p.nom] = p.choix ? choix : texte;
+      parametres[p.nom] = choix;
       return;
     }
     const nombre = Number(brute);
