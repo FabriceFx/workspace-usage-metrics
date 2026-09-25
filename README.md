@@ -28,60 +28,19 @@ Les compteurs s'arrêtent donc à la **dernière date publiée par Google**, que
 bandeau de la synthèse affiche. « Dernière activité Drive » prend la plus
 récente des deux sources : c'est la seule colonne qui peut dépasser cette date.
 
-### Les choix, et pourquoi
+### Choix de conception
 
-**Un jour non chargé n'est pas un jour calme.** Si Google refuse une page, le
-jour entier est écarté des cumuls et le bandeau le nomme. La version d'origine
-avalait l'erreur : le jour valait zéro pour tous les comptes, ou — si la panne
-tombait sur la deuxième page — zéro pour une partie d'entre eux seulement, sans
-aucune mention. De même, un paramètre que l'API refuse laisse ses colonnes
-**vides** : une cellule vide veut dire « non mesuré », jamais « rien trouvé ».
-
-**On interroge tout le domaine, pas chaque compte.** Un appel `all` rend 1 000
-utilisateurs. Pour trente jours, cela fait trente appels par tranche de 1 000
-utilisateurs du domaine, quel que soit le nombre de comptes suivis. Interroger
-compte par compte coûte un appel par compte et par jour : c'est plus cher dès
-qu'on suit plus de comptes qu'il n'y a de tranches.
-
-**Un jour publié ne change plus, donc on le garde.** Le cache (onglet masqué
-`_cache_usage`) retient chaque jour chargé en entier ; le rapport suivant ne
-redemande que le jour nouveau. Un jour que Google déclare partiel
-(`PARTIAL_DATA_AVAILABLE`) est utilisé mais pas gardé. Le cache repart de zéro
-dès que la liste des comptes ou des paramètres change — on le détecte par une
-empreinte SHA-256 de cette liste : un compte ajouté serait sinon absent de tous
-les jours gardés, donc déclaré « absent » à tort.
-
-**Six minutes, et pas une de plus.** Sur un domaine de quelques milliers de
-comptes, trente jours de rapports dépassent le plafond d'une exécution. Le
-rapport travaille donc par étapes — jours d'usage, puis journal Drive compte
-par compte, puis synthèse — avec un budget de quatre minutes. Quand il est
-atteint, l'état est écrit (sous les 9 Ko permis par valeur) et un déclencheur
-ponctuel reprend une minute plus tard, à la page exacte. Le curseur n'avance
-qu'après l'écriture : une exécution tuée fait au pire recommencer une unité,
-jamais en sauter une. Le diagnostic suit la même règle et dit quels comptes il
-n'a pas eu le temps de vérifier.
-
-**Lié au classeur.** Le menu vient du déclencheur simple `onOpen`, et chaque
-action s'exécute sous l'identité de qui la lance. Seul le déclencheur de
-reprise est installable : il tourne sous l'identité de l'administrateur qui a
-cliqué, ne vit que le temps d'un rapport, et n'est jamais posé par quelqu'un
-d'autre. Un projet autonome aurait dû poser un déclencheur permanent, qui
-aurait prêté ses droits à quiconque ouvre le classeur.
-
-**Le réglage n'est pas dans le code.** Fenêtres, seuils de statut et unité
-organisationnelle vivent dans l'onglet « Paramètres ». Le code n'y ajoute que
-les lignes absentes et ne réécrit jamais une valeur saisie.
-
-**Les dates sont des jours.** « Dernière action Gmail » peut venir d'un
-horodatage exact ou d'un compteur d'envois non nul, qui ne donne que le jour.
-Afficher 23:59 dans le second cas ferait passer une présomption pour un fait :
-toutes les colonnes de date affichent donc le jour, et rien de plus.
-
-**Un titre de fichier est une donnée hostile.** N'importe qui peut partager un
-document intitulé `=IMAGE("https://…")` ; écrit tel quel, il deviendrait une
-formule qui appelle ce serveur à chaque ouverture du classeur. Toute chaîne
-venue de Drive est forcée en texte par une apostrophe initiale, invisible à la
-lecture.
+| Choix | Pourquoi |
+|---|---|
+| Un jour que Google n'a pas rendu est **exclu des cumuls** et nommé dans le bandeau. | Le compter à zéro ferait passer une panne pour de l'inactivité. |
+| Une cellule **vide** veut dire « non mesuré ». | Un zéro affirme ce qu'on n'a pas mesuré. |
+| On interroge **tout le domaine** (`all`), pas chaque compte. | 30 jours = 30 appels par tranche de 1 000 utilisateurs, quel que soit le nombre de comptes suivis. |
+| Les jours publiés sont **gardés en cache** (onglet masqué). | Ils ne changent plus : le rapport quotidien ne demande que le jour nouveau. |
+| Le rapport **s'interrompt et reprend** seul. | Un grand domaine dépasse les 6 minutes d'une exécution. |
+| Le projet est **lié au classeur**. | Chaque action s'exécute sous l'identité de qui clique, sans prêter ses droits. |
+| Les réglages sont dans l'onglet **« Paramètres »**. | Les changer ne demande aucun déploiement. |
+| Les dates affichent **le jour**, pas l'heure. | Certaines ne sont connues qu'au jour ; une heure serait inventée. |
+| Les titres de fichiers Drive sont **forcés en texte**. | Un titre `=IMAGE(…)` deviendrait sinon une formule active. |
 
 ### Deux langues : ce qui est traduit, et ce qui ne l'est pas
 
