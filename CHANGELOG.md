@@ -3,6 +3,16 @@
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 Ce projet suit le [Semantic Versioning](https://semver.org/lang/fr/).
 
+## [0.5.0] - 2026-09-25
+
+### Ajouté
+
+- Colonne « Signal Gmail sans connexion » : repère les boîtes utilisées sans jamais se connecter, typiquement par délégation. Présomption, sans effet sur les statuts.
+
+### Modifié
+
+- Colonnes de date repérées par leur en-tête, et non plus par leur rang.
+
 ## [0.4.2] - 2026-09-25
 
 ### Ajouté

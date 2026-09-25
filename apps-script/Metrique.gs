@@ -21,7 +21,7 @@
  */
 
 /** Le seul numéro de version courant du projet. Le banc vérifie qu'il vaut `VERSION`. */
-const METRIQUE_VERSION = '0.4.2';
+const METRIQUE_VERSION = '0.5.0';
 
 /**
  * Constantes techniques. Rien ici ne relève du jugement : les fenêtres, seuils

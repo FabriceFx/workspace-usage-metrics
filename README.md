@@ -51,6 +51,8 @@ récente des deux sources : c'est la seule colonne qui peut dépasser cette date
 | Les réglages sont dans l'onglet **« Paramètres »**. | Les changer ne demande aucun déploiement. |
 | Les dates affichent **le jour**, pas l'heure. | Certaines ne sont connues qu'au jour ; une heure serait inventée. |
 | Les titres de fichiers Drive sont **forcés en texte**. | Un titre `=IMAGE(…)` deviendrait sinon une formule active. |
+| Une colonne signale l'**usage Gmail sans connexion**. | Une boîte lue par délégation ne se connecte jamais : sur la seule dernière connexion, on la croirait morte. |
+| Ce signal reste une **présomption**, à part des statuts. | Les rapports d'usage ne disent pas qui sont les délégués ; ils n'en montrent que la trace. |
 
 ### Rapport programmé
 

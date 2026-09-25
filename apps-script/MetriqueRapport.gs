@@ -243,6 +243,7 @@ const terminerRapport_ = (classeur, etat, comptes) => {
     params: etat.params,
     parametres: etat.parametres,
     aujourdhui: SocleDates.maintenantJour(),
+    debutFenetre: decalerJour_(etat.jourReference, 1 - etat.parametres.joursHistorique),
   };
   const lignes = comptes.map((compte) => analyserCompte_(
     compte, jours, dernierJourDrive.get(compte) || '', contexte));

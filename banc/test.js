@@ -46,6 +46,9 @@ const GROUPE = 'equipe@exemple.fr';
 const ACCUEIL = 'accueil@exemple.fr';
 const COMPTA = 'compta@exemple.fr';
 const RH = 'rh@exemple.fr';
+// Hors de la liste par défaut : deux boîtes génériques utilisées sans connexion.
+const SECRETARIAT = 'secretariat@exemple.fr'; // envoie, ne se connecte jamais
+const STANDARD = 'standard@exemple.fr'; // reçoit et trie, n'envoie ni ne se connecte
 const COMPTES = [GROUPE, ACCUEIL, COMPTA, RH]; // le groupe en premier : Défaut v0.1
 
 const hash = (texte) => [...texte].reduce((h, c) => ((h * 31) + c.charCodeAt(0)) >>> 0, 7);
@@ -57,6 +60,8 @@ const compteurs = (email, jour) => {
     return { recus: n % 20, envoyes: n % 4, crees: n % 3, modifies: n % 5, consultes: n % 7 };
   }
   if (email === RH) return { recus: n % 9, envoyes: 0, crees: 0, modifies: 0, consultes: 0 };
+  if (email === SECRETARIAT) return { recus: n % 10, envoyes: 1 + (n % 3), crees: 0, modifies: 0, consultes: 0 };
+  if (email === STANDARD) return { recus: 5, envoyes: 0, crees: 0, modifies: 0, consultes: 0 };
   if (email === COMPTA) return { recus: 0, envoyes: 0, crees: 0, modifies: 0, consultes: 0 };
   return { recus: n % 3, envoyes: n % 2, crees: 0, modifies: n % 2, consultes: 0 };
 };
@@ -67,8 +72,11 @@ const parametres = (email, jour) => {
     [ACCUEIL]: `${jour}T08:00:00.000Z`,
     [COMPTA]: `${decaler(AUJOURDHUI, -200)}T09:00:00.000Z`,
     [RH]: `${decaler(PUBLIE, -40)}T09:00:00.000Z`,
+    [SECRETARIAT]: `${decaler(PUBLIE, -300)}T09:00:00.000Z`,
+    [STANDARD]: `${decaler(PUBLIE, -300)}T09:00:00.000Z`,
   }[email] || `${jour}T07:00:00.000Z`;
-  const interaction = email === ACCUEIL ? `${jour}T10:00:00.000Z` : '1970-01-01T00:00:00.000Z';
+  const interaction = [ACCUEIL, STANDARD].includes(email)
+    ? `${jour}T10:00:00.000Z` : '1970-01-01T00:00:00.000Z';
   return [
     { nom: 'accounts:last_login_time', datetimeValue: connexion },
     { nom: 'accounts:gmail_used_quota_in_mb', intValue: email === ACCUEIL ? '1234' : '10' },
@@ -84,7 +92,7 @@ const parametres = (email, jour) => {
 
 /** 2 500 agents : trois pages de 1 000, l'accueil en tête et les RH en dernière page. */
 const UTILISATEURS = [ACCUEIL,
-  ...Array.from({ length: 2500 }, (_, i) => `agent${i}@exemple.fr`), COMPTA, RH];
+  ...Array.from({ length: 2500 }, (_, i) => `agent${i}@exemple.fr`), COMPTA, RH, SECRETARIAT, STANDARD];
 
 const evenements = (email, nombre, depuis) => Array.from({ length: nombre }, (_, i) => ({
   time: new Date(Date.parse(`${depuis}T12:00:00Z`) + i * 60000).toISOString(),
@@ -895,6 +903,50 @@ cas('hors installation, rien n\'est retiré', () => {
   const t = charger();
   t.sandbox.genererRapport();
   assert.ok(noms(t).includes('Feuille 1'), 'l\'onglet Comptes existait : ce n\'est pas une installation');
+});
+
+/* ============================ K. Usage sans connexion ============================ */
+
+console.log('K. Usage sans connexion');
+
+const SIGNAL = 'Signal Gmail sans connexion';
+
+cas('chaque cas reçoit le signal le plus fort, jamais un statut modifié', () => {
+  const t = charger({ comptes: [GROUPE, ACCUEIL, COMPTA, RH, SECRETARIAT, STANDARD] });
+  t.sandbox.genererRapport();
+  const l = t.synthese().lignes;
+  assert.match(l.get(ACCUEIL)[SIGNAL], /^Sans objet : connexion pendant la fenêtre/);
+  assert.match(l.get(SECRETARIAT)[SIGNAL], /^🔵 Envois sans connexion/);
+  assert.match(l.get(STANDARD)[SIGNAL], /^🔵 Actions Gmail sans connexion/);
+  assert.match(l.get(RH)[SIGNAL], /^⚪ Réceptions seules/, 'connexion 40 jours avant : hors fenêtre de 30');
+  assert.match(l.get(COMPTA)[SIGNAL], /^Aucun usage Gmail visible/);
+  assert.strictEqual(l.get(GROUPE)[SIGNAL], '', 'compte absent : rien à dire');
+  // Le statut reste mesuré : la présomption ne le repeint pas.
+  assert.ok(l.get(RH)['Statut Gmail'].startsWith('⚫'), l.get(RH)['Statut Gmail']);
+});
+
+cas('connexion refusée par l\'API : pas de signal, puisque « sans connexion » n\'est pas mesurable', () => {
+  const t = charger({ comptes: [SECRETARIAT], reports: nouveauxReports({ parametresRefuses: ['accounts:last_login_time'] }) });
+  t.sandbox.genererRapport();
+  assert.strictEqual(t.synthese().lignes.get(SECRETARIAT)[SIGNAL], '');
+});
+
+cas('réceptions non mesurées : on ne conclut pas « aucun usage »', () => {
+  const t = charger({ comptes: [COMPTA], reports: nouveauxReports({ parametresRefuses: ['gmail:num_emails_received'] }) });
+  t.sandbox.genererRapport();
+  assert.strictEqual(t.synthese().lignes.get(COMPTA)[SIGNAL], '');
+});
+
+cas('la note de l\'en-tête dit que c\'est une présomption', () => {
+  const t = charger();
+  t.sandbox.genererRapport();
+  const s = t.synthese();
+  const note = t.feuille('Synthèse').notes[0][s.entetes.indexOf(SIGNAL)];
+  assert.match(note, /présomption/i);
+});
+
+cas('les colonnes de date restent des dates après l\'ajout de la colonne', () => {
+  memeJour(S.lignes.get(ACCUEIL)['Dernière activité Drive'], decaler(AUJOURDHUI, -2));
 });
 
 /* ------------------------------ Conclusion ------------------------------ */

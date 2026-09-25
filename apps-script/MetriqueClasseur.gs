@@ -10,10 +10,14 @@ const ENTETES_DRIVE = Object.freeze([
   'Compte', 'Date', 'Action', 'Titre du fichier', 'Type', 'Propriétaire', 'Visibilité',
 ]);
 
-const ENTETES_SYNTHESE_LARGEUR = 20;
+const ENTETES_SYNTHESE_LARGEUR = 21;
 
-/** Colonnes de la synthèse qui portent un jour `yyyy-MM-dd` (indices à partir de 0). */
-const COLONNES_JOUR = Object.freeze([2, 3, 5, 11]);
+/**
+ * En-têtes des colonnes qui portent un jour `yyyy-MM-dd`. Repérées par leur
+ * nom, jamais par leur rang : une colonne ajoutée ne doit décaler aucune date.
+ */
+const ENTETES_JOUR = Object.freeze(['Dernière activité', 'Dernière connexion',
+  'Dernière action Gmail', 'Dernière activité Drive']);
 
 const LIGNE_BANDEAU = 1;
 const LIGNE_ENTETES_SYNTHESE = 3;
@@ -43,6 +47,12 @@ const entetesSynthese_ = (joursHistorique) => {
     [`Mails envoyés ${c} j`, cumul('gmail:num_emails_sent', c)],
     [`Mails reçus ${n} j`, cumul('gmail:num_emails_received', n)],
     [`Mails envoyés ${n} j`, cumul('gmail:num_emails_sent', n)],
+    ['Signal Gmail sans connexion', 'Présomption, pas un fait : ne concerne que les comptes '
+      + `sans connexion pendant la fenêtre de ${n} jours. Une boîte lue par délégation ne se `
+      + 'connecte jamais — le délégué ouvre sa propre session. Envois ou actions Gmail sans '
+      + 'connexion : délégation, alias « envoyer en tant que » ou application. Réceptions '
+      + 'seules : délégation en lecture ou boîte abandonnée, indiscernables ici. Vérifiez les '
+      + 'délégués dans les paramètres Gmail de la boîte avant de conclure. Vide = non mesurable.'],
     ['Statut Drive', 'Ancienneté de « Dernière activité Drive ».'],
     ['Dernière activité Drive', 'Le plus récent entre le dernier événement du journal Drive '
       + '(onglet « Détail Drive », à jour à quelques heures près) et le dernier jour où un '
@@ -152,13 +162,14 @@ const ecrireSynthese_ = (classeur, lignes, etat) => {
 
   if (lignes.length) {
     // Colonne A : l'adresse vient de l'onglet Comptes, saisi à la main.
+    const colonnesJour = ENTETES_JOUR.map((nom) => entetes.indexOf(nom));
     const cellules = lignes.map((ligne) => ligne.map((valeur, i) => {
-      if (COLONNES_JOUR.includes(i)) return versCelluleJour_(valeur);
+      if (colonnesJour.includes(i)) return versCelluleJour_(valeur);
       return i === 0 ? enTexte_(valeur) : valeur;
     }));
     const premiere = LIGNE_ENTETES_SYNTHESE + 1;
     feuille.getRange(premiere, 1, cellules.length, entetes.length).setValues(cellules);
-    COLONNES_JOUR.forEach((i) => feuille.getRange(premiere, i + 1, cellules.length, 1)
+    colonnesJour.forEach((i) => feuille.getRange(premiere, i + 1, cellules.length, 1)
       .setNumberFormat('dd/mm/yyyy'));
   }
   feuille.setFrozenRows(LIGNE_ENTETES_SYNTHESE);

@@ -48,6 +48,7 @@ Après avoir changé le jour ou l'heure, choisissez de nouveau **Programmer**.
 | Ligne 2 | Ce qui n'a pas pu être mesuré ; « ✅ » si tout est chargé. |
 | En-têtes | Survolez-les : la note dit d'où vient le chiffre. |
 | Cellule vide | Non mesuré, jamais zéro. |
+| Signal Gmail sans connexion | Boîte utilisée sans connexion : délégation probable. Vérifiez ses délégués dans Gmail avant de la déclarer inactive. |
 
 ## En cas de souci
 

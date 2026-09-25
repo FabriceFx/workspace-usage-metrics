@@ -27,6 +27,36 @@ const JOURS_FENETRE_COURTE = 7;
 /** Le plus récent de plusieurs jours `yyyy-MM-dd`, ou `''`. */
 const plusRecent_ = (jours) => jours.filter(Boolean).sort().pop() || '';
 
+/**
+ * Ce que laisse deviner un usage Gmail **sans connexion** pendant la fenêtre.
+ *
+ * Une boîte générique est souvent lue par délégation : le délégué ouvre sa
+ * propre session, et la dernière connexion de la boîte ne bouge jamais. Aucune
+ * donnée des rapports d'usage ne dit « cette boîte a des délégués » ; on ne
+ * voit que la trace, et l'on retient la plus forte.
+ *
+ * C'est une présomption. Elle vit dans sa propre colonne et ne modifie aucun
+ * statut : un fait et une présomption ne se mélangent pas. Vide quand un
+ * paramètre nécessaire n'est pas mesuré — on ne conclut pas « aucun usage »
+ * sur une réception qu'on n'a pas pu compter.
+ */
+const signalSansConnexion_ = ({ mesure, connexion, interaction, recus, envoyes, debutFenetre }) => {
+  if (!mesure.has('accounts:last_login_time')) return '';
+  if (connexion && connexion >= debutFenetre) return 'Sans objet : connexion pendant la fenêtre';
+  if (mesure.has('gmail:num_emails_sent') && envoyes > 0) {
+    return '🔵 Envois sans connexion : délégation, « envoyer en tant que » ou application';
+  }
+  if (mesure.has('gmail:last_interaction_time') && interaction && interaction >= debutFenetre) {
+    return '🔵 Actions Gmail sans connexion : délégation probable';
+  }
+  if (mesure.has('gmail:num_emails_received') && recus > 0) {
+    return '⚪ Réceptions seules : délégation en lecture ou boîte abandonnée, à vérifier';
+  }
+  const toutMesure = ['gmail:num_emails_sent', 'gmail:last_interaction_time',
+    'gmail:num_emails_received'].every((p) => mesure.has(p));
+  return toutMesure ? 'Aucun usage Gmail visible' : '';
+};
+
 /** Statut lisible d'après l'ancienneté du dernier jour d'activité. */
 const statutActivite_ = (jour, aujourdhui, parametres) => {
   if (!jour) return '⚫ Aucune activité connue';
@@ -49,7 +79,7 @@ const statutActivite_ = (jour, aujourdhui, parametres) => {
  * mesuré ») au lieu de valoir 0.
  */
 const analyserCompte_ = (compte, jours, dernierJourDrive, contexte) => {
-  const { params, parametres, aujourdhui } = contexte;
+  const { params, parametres, aujourdhui, debutFenetre } = contexte;
   const mesure = new Set(params);
   const court = {};
   const long = {};
@@ -84,7 +114,8 @@ const analyserCompte_ = (compte, jours, dernierJourDrive, contexte) => {
   const quota = (parametre) => (recent[parametre] === undefined ? '' : recent[parametre]);
 
   const derniereConnexion = SocleDates.jour(recent['accounts:last_login_time']);
-  const derniereGmail = SocleDates.jour(recent['gmail:last_interaction_time']) || jourEnvoi;
+  const derniereInteraction = SocleDates.jour(recent['gmail:last_interaction_time']);
+  const derniereGmail = derniereInteraction || jourEnvoi;
   const derniereDrive = plusRecent_([dernierJourDrive, jourDrive]);
   const derniere = plusRecent_([derniereConnexion, derniereGmail, derniereDrive]);
 
@@ -94,6 +125,14 @@ const analyserCompte_ = (compte, jours, dernierJourDrive, contexte) => {
     statutActivite_(derniereGmail, aujourdhui, parametres), derniereGmail,
     compteur(court, 'recus'), compteur(court, 'envoyes'),
     compteur(long, 'recus'), compteur(long, 'envoyes'),
+    signalSansConnexion_({
+      mesure,
+      connexion: derniereConnexion,
+      interaction: derniereInteraction,
+      recus: long.recus,
+      envoyes: long.envoyes,
+      debutFenetre,
+    }),
     statutActivite_(derniereDrive, aujourdhui, parametres), derniereDrive,
     compteur(court, 'crees'), compteur(court, 'modifies'), compteur(court, 'consultes'),
     compteur(long, 'crees'), compteur(long, 'modifies'), compteur(long, 'consultes'),
